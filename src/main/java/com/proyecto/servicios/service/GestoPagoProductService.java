@@ -2,7 +2,7 @@ package com.proyecto.servicios.service;
 
 import com.proyecto.servicios.model.gestopago.ProductListResponse;
 
-public interface GestoPagoService {
+public interface GestoPagoProductService {
     
     /**
      * Obtiene la lista de productos desde el servicio externo de GestoPago.
