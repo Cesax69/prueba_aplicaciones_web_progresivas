@@ -1,7 +1,7 @@
 package com.proyecto.servicios.controller;
 
 import com.proyecto.servicios.model.gestopago.ProductListResponse;
-import com.proyecto.servicios.service.GestoPagoService;
+import com.proyecto.servicios.service.GestoPagoProductService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
@@ -16,9 +16,9 @@ import org.springframework.web.bind.annotation.RestController;
 @Slf4j
 public class GestoPagoController {
 
-    private final GestoPagoService gestoPagoService;
+    private final GestoPagoProductService gestoPagoService;
 
-    public GestoPagoController(GestoPagoService gestoPagoService) {
+    public GestoPagoController(GestoPagoProductService gestoPagoService) {
         this.gestoPagoService = gestoPagoService;
     }
 

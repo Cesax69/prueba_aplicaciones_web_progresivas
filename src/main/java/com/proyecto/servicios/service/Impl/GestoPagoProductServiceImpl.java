@@ -4,7 +4,7 @@ import com.proyecto.servicios.client.GestoPagoProductClient;
 import com.proyecto.servicios.entity.gestopago.GestoPagoToken;
 import com.proyecto.servicios.exception.GestoPagoException;
 import com.proyecto.servicios.model.gestopago.ProductListResponse;
-import com.proyecto.servicios.service.GestoPagoService;
+import com.proyecto.servicios.service.GestoPagoProductService;
 import com.proyecto.servicios.service.GestoPagoTokenService;
 import feign.FeignException;
 import lombok.extern.slf4j.Slf4j;
@@ -15,7 +15,7 @@ import java.util.Optional;
 
 @Service
 @Slf4j
-public class GestoPagoServiceImpl implements GestoPagoService {
+public class GestoPagoProductServiceImpl implements GestoPagoProductService {
 
     private final GestoPagoProductClient gestoPagoProductClient;
     private final GestoPagoTokenService tokenService;
@@ -29,7 +29,7 @@ public class GestoPagoServiceImpl implements GestoPagoService {
     @Value("${gestopago.api.key}")
     private String apiKey;
 
-    public GestoPagoServiceImpl(GestoPagoProductClient gestoPagoProductClient, GestoPagoTokenService tokenService) {
+    public GestoPagoProductServiceImpl(GestoPagoProductClient gestoPagoProductClient, GestoPagoTokenService tokenService) {
         this.gestoPagoProductClient = gestoPagoProductClient;
         this.tokenService = tokenService;
     }
