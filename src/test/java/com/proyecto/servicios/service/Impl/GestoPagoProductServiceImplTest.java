@@ -1,10 +1,13 @@
 package com.proyecto.servicios.service.Impl;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.proyecto.servicios.client.GestoPagoProductClient;
+import com.proyecto.servicios.entity.gestopago.GestoPagoProductCache;
 import com.proyecto.servicios.entity.gestopago.GestoPagoToken;
 import com.proyecto.servicios.exception.GestoPagoException;
 import com.proyecto.servicios.model.gestopago.ProductDTO;
 import com.proyecto.servicios.model.gestopago.ProductListResponse;
+import com.proyecto.servicios.repositorys.gestopago.GestoPagoProductCacheRepository;
 import com.proyecto.servicios.service.GestoPagoTokenService;
 import feign.FeignException;
 import feign.Request;
@@ -15,11 +18,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 
 import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -29,30 +35,49 @@ class GestoPagoProductServiceImplTest {
 
     @Mock
     private GestoPagoProductClient gestoPagoProductClient;
-    
+
     @Mock
     private GestoPagoTokenService tokenService;
+
+    @Mock
+    private RedisTemplate<String, String> redisTemplate;
+
+    @Mock
+    private ValueOperations<String, String> valueOperations;
+
+    @Mock
+    private GestoPagoProductCacheRepository productCacheRepository;
+
+    @Mock
+    private ObjectMapper objectMapper;
 
     @InjectMocks
     private GestoPagoProductServiceImpl gestoPagoService;
 
     private Request request;
+    private ProductListResponse mockResponse;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         request = Request.create(Request.HttpMethod.GET, "/url", Collections.emptyMap(), null, new RequestTemplate());
-    }
 
-    @Test
-    void obtenerListaProductos_Success() {
-        // Arrange
-        ProductListResponse mockResponse = new ProductListResponse();
-        mockResponse.setStatus("OK");
         ProductDTO product = new ProductDTO("1", "Producto 1", "Desc", BigDecimal.TEN, "Cat", true);
+        mockResponse = new ProductListResponse();
+        mockResponse.setStatus("OK");
         mockResponse.setData(Collections.singletonList(product));
 
-        when(tokenService.obtenerTokenActivo(any(), any())).thenReturn(Optional.of(new GestoPagoToken()));
-        when(gestoPagoProductClient.getProductList(anyString(), any())).thenReturn(mockResponse);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+    }
+
+    // -------------------------------------------------------------------------
+    // Escenario 1: Sirve desde Redis cuando hay datos en caché
+    // -------------------------------------------------------------------------
+    @Test
+    void obtenerListaProductos_desdeRedis_exitoso() throws Exception {
+        // Arrange
+        String json = "{\"status\":\"OK\",\"data\":[]}";
+        when(valueOperations.get("gestopago:productos")).thenReturn(json);
+        when(objectMapper.readValue(json, ProductListResponse.class)).thenReturn(mockResponse);
 
         // Act
         ProductListResponse result = gestoPagoService.obtenerListaProductos();
@@ -60,87 +85,134 @@ class GestoPagoProductServiceImplTest {
         // Assert
         assertNotNull(result);
         assertEquals("OK", result.getStatus());
-        assertEquals(1, result.getData().size());
-        assertEquals("Producto 1", result.getData().get(0).getName());
-        
-        verify(gestoPagoProductClient, times(1)).getProductList(anyString(), any());
+        // No debe llamar al cliente externo
+        verifyNoInteractions(gestoPagoProductClient);
     }
 
+    // -------------------------------------------------------------------------
+    // Escenario 2: Redis vacío → llama al servicio externo y guarda en Redis
+    // -------------------------------------------------------------------------
     @Test
-    void obtenerListaProductos_ErrorLogico() {
+    void obtenerListaProductos_redisVacio_consultaExternoYGuardaEnRedis() throws Exception {
         // Arrange
-        ProductListResponse mockResponse = new ProductListResponse();
-        mockResponse.setStatus("ERROR");
-        mockResponse.setMessage("Error interno en GestoPago");
-
+        when(valueOperations.get("gestopago:productos")).thenReturn(null);
         when(tokenService.obtenerTokenActivo(any(), any())).thenReturn(Optional.of(new GestoPagoToken()));
         when(gestoPagoProductClient.getProductList(anyString(), any())).thenReturn(mockResponse);
+        when(objectMapper.writeValueAsString(any())).thenReturn("{\"status\":\"OK\"}");
 
-        // Act & Assert
-        GestoPagoException exception = assertThrows(GestoPagoException.class, () -> {
-            gestoPagoService.obtenerListaProductos();
-        });
+        // Act
+        ProductListResponse result = gestoPagoService.obtenerListaProductos();
 
-        assertTrue(exception.getMessage().contains("Error en la respuesta del servicio externo: Error interno en GestoPago"));
-        assertEquals(500, exception.getStatusCode());
-        
-        verify(gestoPagoProductClient, times(1)).getProductList(anyString(), any());
+        // Assert
+        assertNotNull(result);
+        assertEquals("OK", result.getStatus());
+        // Debe guardar en Redis
+        verify(valueOperations, times(1)).set(eq("gestopago:productos"), anyString(), anyLong(), eq(TimeUnit.HOURS));
+        // No debe guardar en BD (Redis funcionó)
+        verifyNoInteractions(productCacheRepository);
     }
 
+    // -------------------------------------------------------------------------
+    // Escenario 3: Redis falla → guarda en BD como fallback
+    // -------------------------------------------------------------------------
     @Test
-    void obtenerListaProductos_Unauthorized() {
+    void obtenerListaProductos_redisFalla_guardaEnBd() throws Exception {
+        // Arrange
+        when(valueOperations.get("gestopago:productos")).thenReturn(null);
+        when(tokenService.obtenerTokenActivo(any(), any())).thenReturn(Optional.of(new GestoPagoToken()));
+        when(gestoPagoProductClient.getProductList(anyString(), any())).thenReturn(mockResponse);
+        when(objectMapper.writeValueAsString(any())).thenReturn("{\"status\":\"OK\"}");
+        // Simular que Redis lanza excepción al escribir
+        doThrow(new RuntimeException("Redis connection refused"))
+                .when(valueOperations).set(anyString(), anyString(), anyLong(), any());
+        when(productCacheRepository.findTopByOrderByFechaActualizacionDesc()).thenReturn(Optional.of(new GestoPagoProductCache()));
+
+        // Act
+        ProductListResponse result = gestoPagoService.obtenerListaProductos();
+
+        // Assert
+        assertNotNull(result);
+        // Debe haber guardado en BD
+        verify(productCacheRepository, times(1)).save(any(GestoPagoProductCache.class));
+    }
+
+    // -------------------------------------------------------------------------
+    // Escenario 4: Servicio externo responde Unauthorized (401)
+    // -------------------------------------------------------------------------
+    @Test
+    void obtenerListaProductos_unauthorized() {
         // Arrange
         FeignException.Unauthorized unauthorized = new FeignException.Unauthorized(
                 "Unauthorized", request, null, new HashMap<>());
-        
+        when(valueOperations.get("gestopago:productos")).thenReturn(null);
         when(tokenService.obtenerTokenActivo(any(), any())).thenReturn(Optional.of(new GestoPagoToken()));
         when(gestoPagoProductClient.getProductList(anyString(), any())).thenThrow(unauthorized);
 
         // Act & Assert
-        GestoPagoException exception = assertThrows(GestoPagoException.class, () -> {
-            gestoPagoService.obtenerListaProductos();
-        });
+        GestoPagoException exception = assertThrows(GestoPagoException.class,
+                () -> gestoPagoService.obtenerListaProductos());
 
         assertEquals(401, exception.getStatusCode());
         assertTrue(exception.getMessage().contains("Error de autenticación"));
-        
-        verify(gestoPagoProductClient, times(1)).getProductList(anyString(), any());
     }
 
+    // -------------------------------------------------------------------------
+    // Escenario 5: Timeout del servicio externo (504)
+    // -------------------------------------------------------------------------
     @Test
-    void obtenerListaProductos_Timeout() {
+    void obtenerListaProductos_timeout() {
         // Arrange
         FeignException.GatewayTimeout timeout = new FeignException.GatewayTimeout(
                 "Gateway Timeout", request, null, new HashMap<>());
-
+        when(valueOperations.get("gestopago:productos")).thenReturn(null);
         when(tokenService.obtenerTokenActivo(any(), any())).thenReturn(Optional.of(new GestoPagoToken()));
         when(gestoPagoProductClient.getProductList(anyString(), any())).thenThrow(timeout);
 
         // Act & Assert
-        GestoPagoException exception = assertThrows(GestoPagoException.class, () -> {
-            gestoPagoService.obtenerListaProductos();
-        });
+        GestoPagoException exception = assertThrows(GestoPagoException.class,
+                () -> gestoPagoService.obtenerListaProductos());
 
         assertEquals(504, exception.getStatusCode());
         assertTrue(exception.getMessage().contains("Timeout al conectar"));
-        
-        verify(gestoPagoProductClient, times(1)).getProductList(anyString(), any());
     }
 
+    // -------------------------------------------------------------------------
+    // Escenario 6: Error lógico en la respuesta del servicio externo
+    // -------------------------------------------------------------------------
     @Test
-    void obtenerListaProductos_UnexpectedError() {
+    void obtenerListaProductos_errorLogico() {
         // Arrange
+        ProductListResponse errorResponse = new ProductListResponse();
+        errorResponse.setStatus("ERROR");
+        errorResponse.setMessage("Error interno en GestoPago");
+
+        when(valueOperations.get("gestopago:productos")).thenReturn(null);
+        when(tokenService.obtenerTokenActivo(any(), any())).thenReturn(Optional.of(new GestoPagoToken()));
+        when(gestoPagoProductClient.getProductList(anyString(), any())).thenReturn(errorResponse);
+
+        // Act & Assert
+        GestoPagoException exception = assertThrows(GestoPagoException.class,
+                () -> gestoPagoService.obtenerListaProductos());
+
+        assertEquals(500, exception.getStatusCode());
+        assertTrue(exception.getMessage().contains("Error en la respuesta del servicio externo: Error interno en GestoPago"));
+    }
+
+    // -------------------------------------------------------------------------
+    // Escenario 7: Error inesperado (500)
+    // -------------------------------------------------------------------------
+    @Test
+    void obtenerListaProductos_errorInesperado() {
+        // Arrange
+        when(valueOperations.get("gestopago:productos")).thenReturn(null);
         when(tokenService.obtenerTokenActivo(any(), any())).thenReturn(Optional.of(new GestoPagoToken()));
         when(gestoPagoProductClient.getProductList(anyString(), any())).thenThrow(new RuntimeException("Unexpected error"));
 
         // Act & Assert
-        GestoPagoException exception = assertThrows(GestoPagoException.class, () -> {
-            gestoPagoService.obtenerListaProductos();
-        });
+        GestoPagoException exception = assertThrows(GestoPagoException.class,
+                () -> gestoPagoService.obtenerListaProductos());
 
         assertEquals(500, exception.getStatusCode());
         assertTrue(exception.getMessage().contains("Error interno al procesar la integración"));
-        
-        verify(gestoPagoProductClient, times(1)).getProductList(anyString(), any());
     }
 }
