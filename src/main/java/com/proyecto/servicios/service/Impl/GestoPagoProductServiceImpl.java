@@ -10,6 +10,7 @@ import com.proyecto.servicios.exception.GestoPagoException;
 import com.proyecto.servicios.model.gestopago.ProductGroupDTO;
 import com.proyecto.servicios.model.gestopago.ProductGroupedResponse;
 import com.proyecto.servicios.model.gestopago.ProductListResponse;
+import com.proyecto.servicios.model.gestopago.CacheDiagnosticResponse;
 import com.proyecto.servicios.repositorys.gestopago.GestoPagoProductCacheRepository;
 import com.proyecto.servicios.service.GestoPagoProductService;
 import com.proyecto.servicios.service.GestoPagoTokenService;
@@ -189,6 +190,51 @@ public class GestoPagoProductServiceImpl implements GestoPagoProductService {
             log.info("Cron 06:00 AM - Caché de productos agrupados refrescada correctamente");
         } catch (Exception e) {
             log.error("Cron 06:00 AM - Error al refrescar caché de productos: {}", e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public CacheDiagnosticResponse comprobarCache() {
+        log.info("Ejecutando diagnóstico de caché GestoPago...");
+        // 1. Probar Redis
+        try {
+            String json = redisTemplate.opsForValue().get(REDIS_KEY);
+            if (json != null && !json.isEmpty()) {
+                ProductGroupedResponse datos = objectMapper.readValue(json, ProductGroupedResponse.class);
+                return CacheDiagnosticResponse.builder()
+                        .codigo(0)
+                        .origen("REDIS")
+                        .mensaje("Éxito. Datos obtenidos desde Redis.")
+                        .datos(datos)
+                        .build();
+            } else {
+                throw new RuntimeException("Caché de Redis está vacía");
+            }
+        } catch (Exception eRedis) {
+            log.warn("Diagnostic: Error o vacío en Redis: {}", eRedis.getMessage());
+            
+            // 2. Si falla Redis, probar BD
+            try {
+                GestoPagoProductCache cacheBd = productCacheRepository.findTopByOrderByFechaActualizacionDesc().orElse(null);
+                if (cacheBd != null && cacheBd.getProductosJson() != null) {
+                    ProductGroupedResponse datos = objectMapper.readValue(cacheBd.getProductosJson(), ProductGroupedResponse.class);
+                    return CacheDiagnosticResponse.builder()
+                            .codigo(1)
+                            .origen("BASE_DE_DATOS")
+                            .mensaje("Error/Vacío en Redis. Datos leídos desde BD de respaldo. Causa Redis: " + eRedis.getMessage())
+                            .datos(datos)
+                            .build();
+                } else {
+                    throw new RuntimeException("La tabla de caché en BD está vacía");
+                }
+            } catch (Exception eBd) {
+                log.error("Diagnostic: Error en BD: {}", eBd.getMessage());
+                return CacheDiagnosticResponse.builder()
+                        .codigo(2)
+                        .origen("NINGUNO")
+                        .mensaje("Error en BD (y Redis también falló/vacío). Detalles BD: " + eBd.getMessage())
+                        .build();
+            }
         }
     }
 
