@@ -155,11 +155,16 @@ public class GestoPagoProductServiceImpl implements GestoPagoProductService {
 
             // Llamar al servicio externo (respuesta en crudo: puede ser XML o JSON)
             String rawResponse = gestoPagoProductClient.getProductList(bearerToken, apiKey);
-            log.debug("Respuesta cruda recibida del servicio externo (primeros 200 chars): {}",
-                    rawResponse != null ? rawResponse.substring(0, Math.min(rawResponse.length(), 200)) : "null");
+            log.debug("Respuesta cruda recibida del servicio externo (primeros 300 chars): {}",
+                    rawResponse != null ? rawResponse.substring(0, Math.min(rawResponse.length(), 300)) : "null");
 
             // Parsear la respuesta según su formato
             ProductListResponse response = parsearRespuesta(rawResponse);
+
+            // Para respuestas XML el estado se calcula desde los datos recibidos
+            if (response != null && (response.getStatus() == null || response.getStatus().isBlank())) {
+                response.calcularStatus();
+            }
 
             if (response == null || "ERROR".equalsIgnoreCase(response.getStatus())) {
                 String errorMsg = response != null ? response.getMessage() : "Respuesta nula o inválida";
