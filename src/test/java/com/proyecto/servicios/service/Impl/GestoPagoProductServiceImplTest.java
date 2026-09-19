@@ -21,7 +21,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
-import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -63,7 +62,7 @@ class GestoPagoProductServiceImplTest {
     void setUp() {
         request = Request.create(Request.HttpMethod.GET, "/url", Collections.emptyMap(), null, new RequestTemplate());
 
-        ProductDTO product = new ProductDTO("1", "Producto 1", "Desc", BigDecimal.TEN, "Cat", true);
+        ProductDTO product = new ProductDTO("1", "Producto 1", "Servicio 1", "100", "10.0", "a", "1", "false", "11");
         mockResponse = new ProductListResponse();
         mockResponse.setStatus("OK");
         mockResponse.setData(List.of(product));
