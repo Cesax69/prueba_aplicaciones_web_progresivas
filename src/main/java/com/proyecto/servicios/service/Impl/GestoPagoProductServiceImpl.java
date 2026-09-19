@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class GestoPagoProductServiceImpl implements GestoPagoProductService {
 
-    private static final String REDIS_KEY = "gestopago:productos";
+    private static final String REDIS_KEY = "gestopago:productos:agrupados";
 
     private final GestoPagoProductClient gestoPagoProductClient;
     private final GestoPagoTokenService tokenService;
