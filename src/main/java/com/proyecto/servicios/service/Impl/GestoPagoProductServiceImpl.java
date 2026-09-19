@@ -2,6 +2,7 @@ package com.proyecto.servicios.service.Impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import com.proyecto.servicios.client.GestoPagoProductClient;
 import com.proyecto.servicios.entity.gestopago.GestoPagoProductCache;
 import com.proyecto.servicios.entity.gestopago.GestoPagoToken;
@@ -29,6 +30,8 @@ import java.util.concurrent.TimeUnit;
  *   <li>Si Redis falla → fallback: se guarda en la tabla {@code gestopago_product_cache} de la BD.</li>
  *   <li>Cron diario a las 06:00 AM → refresca la caché automáticamente.</li>
  * </ul>
+ * <p>
+ * El servicio externo puede responder en XML o JSON. Se detecta automáticamente.
  */
 @Service
 @Slf4j
@@ -41,6 +44,7 @@ public class GestoPagoProductServiceImpl implements GestoPagoProductService {
     private final RedisTemplate<String, String> redisTemplate;
     private final GestoPagoProductCacheRepository productCacheRepository;
     private final ObjectMapper objectMapper;
+    private final XmlMapper xmlMapper;
 
     @Value("${gestopago.auth.id-distribuidor}")
     private Integer idDistribuidor;
@@ -64,6 +68,7 @@ public class GestoPagoProductServiceImpl implements GestoPagoProductService {
         this.redisTemplate = redisTemplate;
         this.productCacheRepository = productCacheRepository;
         this.objectMapper = objectMapper;
+        this.xmlMapper = new XmlMapper();
     }
 
     /**
@@ -75,10 +80,10 @@ public class GestoPagoProductServiceImpl implements GestoPagoProductService {
         log.info("Iniciando obtención de lista de productos GestoPago");
         try {
             // 1. Intentar servir desde Redis
-            ProductListResponse desdRedis = obtenerDesdRedis();
-            if (desdRedis != null) {
+            ProductListResponse desdeRedis = obtenerDesdeRedis();
+            if (desdeRedis != null) {
                 log.info("Productos obtenidos desde caché Redis");
-                return desdRedis;
+                return desdeRedis;
             }
 
             // 2. Redis vacío o expirado → consultar al servicio externo
@@ -118,7 +123,7 @@ public class GestoPagoProductServiceImpl implements GestoPagoProductService {
      *
      * @return {@link ProductListResponse} deserializado o {@code null} si no hay datos.
      */
-    private ProductListResponse obtenerDesdRedis() {
+    private ProductListResponse obtenerDesdeRedis() {
         try {
             String json = redisTemplate.opsForValue().get(REDIS_KEY);
             if (json != null && !json.isEmpty()) {
@@ -132,6 +137,7 @@ public class GestoPagoProductServiceImpl implements GestoPagoProductService {
 
     /**
      * Llama al cliente Feign para obtener los productos directamente del servicio externo.
+     * Detecta automáticamente si la respuesta es XML o JSON y la parsea correctamente.
      *
      * @return {@link ProductListResponse} con los datos de GestoPago.
      * @throws GestoPagoException si hay un error de comunicación o la respuesta es errónea.
@@ -147,10 +153,16 @@ public class GestoPagoProductServiceImpl implements GestoPagoProductService {
                 log.warn("No se encontró un token activo en la base de datos para GestoPago.");
             }
 
-            ProductListResponse response = gestoPagoProductClient.getProductList(bearerToken, apiKey);
+            // Llamar al servicio externo (respuesta en crudo: puede ser XML o JSON)
+            String rawResponse = gestoPagoProductClient.getProductList(bearerToken, apiKey);
+            log.debug("Respuesta cruda recibida del servicio externo (primeros 200 chars): {}",
+                    rawResponse != null ? rawResponse.substring(0, Math.min(rawResponse.length(), 200)) : "null");
+
+            // Parsear la respuesta según su formato
+            ProductListResponse response = parsearRespuesta(rawResponse);
 
             if (response == null || "ERROR".equalsIgnoreCase(response.getStatus())) {
-                String errorMsg = response != null ? response.getMessage() : "Respuesta nula";
+                String errorMsg = response != null ? response.getMessage() : "Respuesta nula o inválida";
                 log.error("El servicio externo respondió con error lógico: {}", errorMsg);
                 throw new GestoPagoException("Error en la respuesta del servicio externo: " + errorMsg, 500);
             }
@@ -172,6 +184,28 @@ public class GestoPagoProductServiceImpl implements GestoPagoProductService {
         } catch (Exception e) {
             log.error("Error inesperado al obtener la lista de productos de GestoPago", e);
             throw new GestoPagoException("Error interno al procesar la integración con GestoPago", e, 500);
+        }
+    }
+
+    /**
+     * Detecta si la respuesta es XML o JSON y la parsea al objeto {@link ProductListResponse}.
+     *
+     * @param rawResponse Respuesta en crudo del servicio externo.
+     * @return {@link ProductListResponse} parseado.
+     */
+    private ProductListResponse parsearRespuesta(String rawResponse) throws Exception {
+        if (rawResponse == null || rawResponse.isBlank()) {
+            return null;
+        }
+        String trimmed = rawResponse.trim();
+        if (trimmed.startsWith("<")) {
+            // Respuesta en formato XML
+            log.debug("Respuesta detectada como XML, parseando con XmlMapper");
+            return xmlMapper.readValue(trimmed, ProductListResponse.class);
+        } else {
+            // Respuesta en formato JSON
+            log.debug("Respuesta detectada como JSON, parseando con ObjectMapper");
+            return objectMapper.readValue(trimmed, ProductListResponse.class);
         }
     }
 

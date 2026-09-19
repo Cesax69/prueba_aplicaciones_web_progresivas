@@ -24,6 +24,7 @@ import org.springframework.data.redis.core.ValueOperations;
 import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
@@ -56,15 +57,16 @@ class GestoPagoProductServiceImplTest {
 
     private Request request;
     private ProductListResponse mockResponse;
+    private static final String JSON_RESPONSE = "{\"status\":\"OK\",\"message\":null,\"data\":[{\"id\":\"1\",\"name\":\"Producto 1\"}]}";
 
     @BeforeEach
-    void setUp() throws Exception {
+    void setUp() {
         request = Request.create(Request.HttpMethod.GET, "/url", Collections.emptyMap(), null, new RequestTemplate());
 
         ProductDTO product = new ProductDTO("1", "Producto 1", "Desc", BigDecimal.TEN, "Cat", true);
         mockResponse = new ProductListResponse();
         mockResponse.setStatus("OK");
-        mockResponse.setData(Collections.singletonList(product));
+        mockResponse.setData(List.of(product));
 
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
     }
@@ -75,9 +77,8 @@ class GestoPagoProductServiceImplTest {
     @Test
     void obtenerListaProductos_desdeRedis_exitoso() throws Exception {
         // Arrange
-        String json = "{\"status\":\"OK\",\"data\":[]}";
-        when(valueOperations.get("gestopago:productos")).thenReturn(json);
-        when(objectMapper.readValue(json, ProductListResponse.class)).thenReturn(mockResponse);
+        when(valueOperations.get("gestopago:productos")).thenReturn(JSON_RESPONSE);
+        when(objectMapper.readValue(JSON_RESPONSE, ProductListResponse.class)).thenReturn(mockResponse);
 
         // Act
         ProductListResponse result = gestoPagoService.obtenerListaProductos();
@@ -90,15 +91,16 @@ class GestoPagoProductServiceImplTest {
     }
 
     // -------------------------------------------------------------------------
-    // Escenario 2: Redis vacío → llama al servicio externo y guarda en Redis
+    // Escenario 2: Redis vacío → llama al servicio externo (respuesta JSON) y guarda en Redis
     // -------------------------------------------------------------------------
     @Test
-    void obtenerListaProductos_redisVacio_consultaExternoYGuardaEnRedis() throws Exception {
+    void obtenerListaProductos_redisVacio_consultaExternoJsonYGuardaEnRedis() throws Exception {
         // Arrange
         when(valueOperations.get("gestopago:productos")).thenReturn(null);
         when(tokenService.obtenerTokenActivo(any(), any())).thenReturn(Optional.of(new GestoPagoToken()));
-        when(gestoPagoProductClient.getProductList(anyString(), any())).thenReturn(mockResponse);
-        when(objectMapper.writeValueAsString(any())).thenReturn("{\"status\":\"OK\"}");
+        when(gestoPagoProductClient.getProductList(anyString(), any())).thenReturn(JSON_RESPONSE);
+        when(objectMapper.readValue(JSON_RESPONSE, ProductListResponse.class)).thenReturn(mockResponse);
+        when(objectMapper.writeValueAsString(any())).thenReturn(JSON_RESPONSE);
 
         // Act
         ProductListResponse result = gestoPagoService.obtenerListaProductos();
@@ -120,12 +122,14 @@ class GestoPagoProductServiceImplTest {
         // Arrange
         when(valueOperations.get("gestopago:productos")).thenReturn(null);
         when(tokenService.obtenerTokenActivo(any(), any())).thenReturn(Optional.of(new GestoPagoToken()));
-        when(gestoPagoProductClient.getProductList(anyString(), any())).thenReturn(mockResponse);
-        when(objectMapper.writeValueAsString(any())).thenReturn("{\"status\":\"OK\"}");
+        when(gestoPagoProductClient.getProductList(anyString(), any())).thenReturn(JSON_RESPONSE);
+        when(objectMapper.readValue(JSON_RESPONSE, ProductListResponse.class)).thenReturn(mockResponse);
+        when(objectMapper.writeValueAsString(any())).thenReturn(JSON_RESPONSE);
         // Simular que Redis lanza excepción al escribir
         doThrow(new RuntimeException("Redis connection refused"))
                 .when(valueOperations).set(anyString(), anyString(), anyLong(), any());
-        when(productCacheRepository.findTopByOrderByFechaActualizacionDesc()).thenReturn(Optional.of(new GestoPagoProductCache()));
+        when(productCacheRepository.findTopByOrderByFechaActualizacionDesc())
+                .thenReturn(Optional.of(new GestoPagoProductCache()));
 
         // Act
         ProductListResponse result = gestoPagoService.obtenerListaProductos();
@@ -177,18 +181,20 @@ class GestoPagoProductServiceImplTest {
     }
 
     // -------------------------------------------------------------------------
-    // Escenario 6: Error lógico en la respuesta del servicio externo
+    // Escenario 6: Respuesta con status ERROR (error lógico del negocio)
     // -------------------------------------------------------------------------
     @Test
-    void obtenerListaProductos_errorLogico() {
+    void obtenerListaProductos_errorLogico() throws Exception {
         // Arrange
+        String errorJson = "{\"status\":\"ERROR\",\"message\":\"Error interno en GestoPago\"}";
         ProductListResponse errorResponse = new ProductListResponse();
         errorResponse.setStatus("ERROR");
         errorResponse.setMessage("Error interno en GestoPago");
 
         when(valueOperations.get("gestopago:productos")).thenReturn(null);
         when(tokenService.obtenerTokenActivo(any(), any())).thenReturn(Optional.of(new GestoPagoToken()));
-        when(gestoPagoProductClient.getProductList(anyString(), any())).thenReturn(errorResponse);
+        when(gestoPagoProductClient.getProductList(anyString(), any())).thenReturn(errorJson);
+        when(objectMapper.readValue(errorJson, ProductListResponse.class)).thenReturn(errorResponse);
 
         // Act & Assert
         GestoPagoException exception = assertThrows(GestoPagoException.class,
