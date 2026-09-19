@@ -78,89 +78,102 @@ public class GestoPagoProductServiceImpl implements GestoPagoProductService {
     }
 
     /**
-     * Obtiene la lista de productos. Intenta servir desde Redis primero;
-     * si no hay caché, consulta a GestoPago y guarda el resultado.
+     * Obtiene la lista de productos plana construyéndola a partir de la agrupada en caché.
      */
     @Override
     public ProductListResponse obtenerListaProductos() {
-        log.info("Iniciando obtención de lista de productos GestoPago");
+        log.info("Iniciando obtención de lista de productos plana de GestoPago");
         try {
-            // 1. Intentar servir desde Redis
-            ProductListResponse desdeRedis = obtenerDesdeRedis();
-            if (desdeRedis != null) {
-                log.info("Productos obtenidos desde caché Redis");
-                return desdeRedis;
+            // Obtenemos los agrupados (que ya manejan la caché y la petición)
+            ProductGroupedResponse agrupados = obtenerProductosAgrupados();
+
+            ProductListResponse flatResponse = new ProductListResponse();
+            flatResponse.setStatus(agrupados.getStatus());
+            flatResponse.setMessage(agrupados.getMessage());
+            
+            List<com.proyecto.servicios.model.gestopago.ProductDTO> flatList = new java.util.ArrayList<>();
+            if (agrupados.getGrupos() != null) {
+                for (ProductGroupDTO grupo : agrupados.getGrupos()) {
+                    if (grupo.getProductos() != null) {
+                        flatList.addAll(grupo.getProductos());
+                    }
+                }
             }
-
-            // 2. Redis vacío o expirado → consultar al servicio externo
-            ProductListResponse response = consultarServicioExterno();
-
-            // 3. Guardar resultado en caché
-            guardarEnCache(response);
-
-            return response;
+            flatResponse.setData(flatList);
+            return flatResponse;
 
         } finally {
-            log.info("Fin de la invocación al servicio de productos GestoPago");
+            log.info("Fin de la invocación al servicio de productos planos de GestoPago");
         }
     }
 
     /**
      * Obtiene los productos agrupados por {@code tipoFront}.
-     * Reutiliza la caché de Redis para no llamar al servicio externo innecesariamente.
+     * Se prioriza la caché de Redis/BD. Si no hay, consulta y agrupa.
      */
     @Override
     public ProductGroupedResponse obtenerProductosAgrupados() {
         log.info("Iniciando obtención de productos agrupados por tipoFront");
         try {
-            // Reutiliza la misma lógica de caché del método base
-            ProductListResponse listaPlana = obtenerListaProductos();
-
-            if (listaPlana == null || listaPlana.getData() == null || listaPlana.getData().isEmpty()) {
-                log.warn("No se obtuvieron productos para agrupar");
-                return ProductGroupedResponse.builder()
-                        .status("VACIO")
-                        .message("No se encontraron productos")
-                        .totalProductos(0)
-                        .totalGrupos(0)
-                        .grupos(List.of())
-                        .build();
+            // 1. Intentar servir desde Redis (ahora guarda agrupados)
+            ProductGroupedResponse desdeRedis = obtenerDesdeRedis();
+            if (desdeRedis != null) {
+                log.info("Productos agrupados obtenidos desde caché Redis");
+                return desdeRedis;
             }
 
-            // Agrupar por tipoFront usando Stream API
-            Map<String, List<com.proyecto.servicios.model.gestopago.ProductDTO>> agrupados = listaPlana.getData().stream()
-                    .filter(p -> p.getFrontType() != null)
-                    .collect(Collectors.groupingBy(
-                            com.proyecto.servicios.model.gestopago.ProductDTO::getFrontType,
-                            Collectors.toList()
-                    ));
-
-            // Convertir a lista de ProductGroupDTO, ordenada por tipoFront
-            List<ProductGroupDTO> grupos = agrupados.entrySet().stream()
-                    .sorted(Map.Entry.comparingByKey(Comparator.comparingInt(k -> {
-                        try { return Integer.parseInt(k); } catch (NumberFormatException e) { return Integer.MAX_VALUE; }
-                    })))
-                    .map(entry -> ProductGroupDTO.builder()
-                            .tipoFront(entry.getKey())
-                            .total(entry.getValue().size())
-                            .productos(entry.getValue())
-                            .build())
-                    .collect(Collectors.toList());
-
-            log.info("Productos agrupados correctamente: {} grupos, {} productos en total",
-                    grupos.size(), listaPlana.getData().size());
-
-            return ProductGroupedResponse.builder()
-                    .status("OK")
-                    .message(listaPlana.getMessage())
-                    .totalProductos(listaPlana.getData().size())
-                    .totalGrupos(grupos.size())
-                    .grupos(grupos)
-                    .build();
+            // 2. Si no hay caché, consulta externa
+            ProductListResponse listaPlana = consultarServicioExterno();
+            
+            // 3. Agrupar
+            ProductGroupedResponse groupedResponse = agruparProductos(listaPlana);
+            
+            // 4. Guardar agrupados en caché
+            guardarEnCache(groupedResponse);
+            
+            return groupedResponse;
 
         } finally {
             log.info("Fin de la obtención de productos agrupados");
         }
+    }
+    
+    private ProductGroupedResponse agruparProductos(ProductListResponse listaPlana) {
+        if (listaPlana == null || listaPlana.getData() == null || listaPlana.getData().isEmpty()) {
+            return ProductGroupedResponse.builder()
+                    .status("VACIO")
+                    .message("No se encontraron productos")
+                    .totalProductos(0)
+                    .totalGrupos(0)
+                    .grupos(List.of())
+                    .build();
+        }
+
+        Map<String, List<com.proyecto.servicios.model.gestopago.ProductDTO>> agrupados = listaPlana.getData().stream()
+                .filter(p -> p.getFrontType() != null)
+                .collect(Collectors.groupingBy(
+                        com.proyecto.servicios.model.gestopago.ProductDTO::getFrontType,
+                        Collectors.toList()
+                ));
+
+        List<ProductGroupDTO> grupos = agrupados.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey(Comparator.comparingInt(k -> {
+                    try { return Integer.parseInt(k); } catch (NumberFormatException e) { return Integer.MAX_VALUE; }
+                })))
+                .map(entry -> ProductGroupDTO.builder()
+                        .tipoFront(entry.getKey())
+                        .total(entry.getValue().size())
+                        .productos(entry.getValue())
+                        .build())
+                .collect(Collectors.toList());
+
+        return ProductGroupedResponse.builder()
+                .status("OK")
+                .message(listaPlana.getMessage())
+                .totalProductos(listaPlana.getData().size())
+                .totalGrupos(grupos.size())
+                .grupos(grupos)
+                .build();
     }
 
     /**
@@ -171,8 +184,9 @@ public class GestoPagoProductServiceImpl implements GestoPagoProductService {
         log.info("Cron 06:00 AM - Iniciando refresco automático de caché de productos GestoPago");
         try {
             ProductListResponse response = consultarServicioExterno();
-            guardarEnCache(response);
-            log.info("Cron 06:00 AM - Caché de productos refrescada correctamente");
+            ProductGroupedResponse grouped = agruparProductos(response);
+            guardarEnCache(grouped);
+            log.info("Cron 06:00 AM - Caché de productos agrupados refrescada correctamente");
         } catch (Exception e) {
             log.error("Cron 06:00 AM - Error al refrescar caché de productos: {}", e.getMessage(), e);
         }
@@ -183,15 +197,15 @@ public class GestoPagoProductServiceImpl implements GestoPagoProductService {
     // -------------------------------------------------------------------------
 
     /**
-     * Intenta leer la lista de productos desde Redis.
+     * Intenta leer los productos agrupados desde Redis.
      *
-     * @return {@link ProductListResponse} deserializado o {@code null} si no hay datos.
+     * @return {@link ProductGroupedResponse} deserializado o {@code null} si no hay datos.
      */
-    private ProductListResponse obtenerDesdeRedis() {
+    private ProductGroupedResponse obtenerDesdeRedis() {
         try {
             String json = redisTemplate.opsForValue().get(REDIS_KEY);
             if (json != null && !json.isEmpty()) {
-                return objectMapper.readValue(json, ProductListResponse.class);
+                return objectMapper.readValue(json, ProductGroupedResponse.class);
             }
         } catch (Exception e) {
             log.warn("No se pudo leer el caché de Redis (clave: {}): {}", REDIS_KEY, e.getMessage());
@@ -279,28 +293,27 @@ public class GestoPagoProductServiceImpl implements GestoPagoProductService {
     }
 
     /**
-     * Guarda el resultado en Redis. Si Redis falla, guarda en la BD como fallback.
+     * Guarda el resultado AGRUPADO en Redis. Si Redis falla, guarda en la BD como fallback.
      *
-     * @param response La respuesta exitosa del servicio externo.
+     * @param response La respuesta agrupada.
      */
-    private void guardarEnCache(ProductListResponse response) {
+    private void guardarEnCache(ProductGroupedResponse response) {
         try {
             String json = objectMapper.writeValueAsString(response);
             redisTemplate.opsForValue().set(REDIS_KEY, json, cacheTtlHoras, TimeUnit.HOURS);
-            log.info("Lista de productos guardada en Redis (TTL: {} hora(s))", cacheTtlHoras);
+            log.info("Productos agrupados guardados en Redis (TTL: {} hora(s))", cacheTtlHoras);
         } catch (Exception redisEx) {
-            log.warn("Redis no disponible. Guardando caché de productos en BD como fallback: {}", redisEx.getMessage());
+            log.warn("Redis no disponible. Guardando caché agrupada en BD como fallback: {}", redisEx.getMessage());
             guardarEnBd(response);
         }
     }
 
     /**
-     * Fallback: serializa y persiste la lista de productos en la tabla
-     * {@code gestopago_product_cache} de la BD.
+     * Fallback: serializa y persiste los productos agrupados en la BD.
      *
-     * @param response La respuesta a persistir.
+     * @param response La respuesta agrupada a persistir.
      */
-    private void guardarEnBd(ProductListResponse response) {
+    private void guardarEnBd(ProductGroupedResponse response) {
         try {
             String json = objectMapper.writeValueAsString(response);
             GestoPagoProductCache cache = productCacheRepository
@@ -308,11 +321,11 @@ public class GestoPagoProductServiceImpl implements GestoPagoProductService {
                     .orElseGet(GestoPagoProductCache::new);
             cache.setProductosJson(json);
             productCacheRepository.save(cache);
-            log.info("Caché de productos guardada correctamente en BD (fallback)");
+            log.info("Caché agrupada guardada correctamente en BD (fallback)");
         } catch (JsonProcessingException e) {
-            log.error("Error al serializar la lista de productos para guardar en BD: {}", e.getMessage(), e);
+            log.error("Error al serializar productos agrupados para guardar en BD: {}", e.getMessage(), e);
         } catch (Exception e) {
-            log.error("Error al guardar caché de productos en BD: {}", e.getMessage(), e);
+            log.error("Error al guardar caché agrupada en BD: {}", e.getMessage(), e);
         }
     }
 }
