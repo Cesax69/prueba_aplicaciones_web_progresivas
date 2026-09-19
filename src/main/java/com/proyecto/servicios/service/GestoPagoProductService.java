@@ -2,6 +2,7 @@ package com.proyecto.servicios.service;
 
 import com.proyecto.servicios.model.gestopago.ProductGroupedResponse;
 import com.proyecto.servicios.model.gestopago.ProductListResponse;
+import com.proyecto.servicios.model.gestopago.CacheDiagnosticResponse;
 
 public interface GestoPagoProductService {
 
@@ -18,4 +19,10 @@ public interface GestoPagoProductService {
      * @return ProductGroupedResponse respuesta con productos organizados por tipoFront
      */
     ProductGroupedResponse obtenerProductosAgrupados();
+
+    /**
+     * Endpoint de diagnóstico para probar la lectura de la caché.
+     * @return CacheDiagnosticResponse con el estado (0=éxito, 1=error redis, 2=error bd)
+     */
+    CacheDiagnosticResponse comprobarCache();
 }

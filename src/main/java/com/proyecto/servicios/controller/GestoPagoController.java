@@ -2,6 +2,7 @@ package com.proyecto.servicios.controller;
 
 import com.proyecto.servicios.model.gestopago.ProductGroupedResponse;
 import com.proyecto.servicios.model.gestopago.ProductListResponse;
+import com.proyecto.servicios.model.gestopago.CacheDiagnosticResponse;
 import com.proyecto.servicios.service.GestoPagoProductService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -43,6 +44,17 @@ public class GestoPagoController {
     public ResponseEntity<ProductGroupedResponse> obtenerProductosAgrupados() {
         log.info("REST request para obtener productos agrupados por tipoFront");
         ProductGroupedResponse response = gestoPagoService.obtenerProductosAgrupados();
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/cache/diagnostico")
+    @Operation(
+            summary = "Diagnosticar estado de la caché de productos",
+            description = "Verifica explícitamente el origen de los datos almacenados. Devuelve código 0 si provienen de Redis, código 1 si hubo error en Redis y provienen de BD, o código 2 si ambos fallaron."
+    )
+    public ResponseEntity<CacheDiagnosticResponse> comprobarCache() {
+        log.info("REST request para diagnóstico de caché de GestoPago");
+        CacheDiagnosticResponse response = gestoPagoService.comprobarCache();
         return ResponseEntity.ok(response);
     }
 }
