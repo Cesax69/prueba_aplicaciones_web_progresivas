@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlElementWrapper;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlRootElement;
+import com.proyecto.servicios.enums.DataSourceEnum;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -38,6 +39,9 @@ public class ProductListResponse {
     @JacksonXmlProperty(localName = "MENSAJE")
     private String message;
 
+    private Integer codigoCache;
+    private String origenCache;
+
     /** Lista de productos (elemento contenedor: PRODUCTOS, elementos hijos: producto) */
     @JacksonXmlElementWrapper(localName = "PRODUCTOS")
     @JacksonXmlProperty(localName = "producto")
@@ -59,7 +63,14 @@ public class ProductListResponse {
         } else if (message != null && !message.isEmpty()) {
             this.status = "VACIO";
         } else {
-            this.status = "OK";
+            this.message = "Operación exitosa";
+        }
+    }
+
+    public void setOrigenDatos(DataSourceEnum origen) {
+        if (origen != null) {
+            this.codigoCache = origen.getCodigo();
+            this.origenCache = origen.getDescripcion();
         }
     }
 }

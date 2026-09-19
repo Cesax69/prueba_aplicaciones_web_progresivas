@@ -1,6 +1,7 @@
 package com.proyecto.servicios.model.gestopago;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.proyecto.servicios.enums.DataSourceEnum;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -22,6 +23,10 @@ public class ProductGroupedResponse {
 
     private String message;
 
+    private Integer codigoCache;
+
+    private String origenCache;
+
     /** Total de productos obtenidos del servicio externo */
     private int totalProductos;
 
@@ -30,4 +35,11 @@ public class ProductGroupedResponse {
 
     /** Productos agrupados por tipoFront */
     private List<ProductGroupDTO> grupos;
+
+    public void setOrigenDatos(DataSourceEnum origen) {
+        if (origen != null) {
+            this.codigoCache = origen.getCodigo();
+            this.origenCache = origen.getDescripcion();
+        }
+    }
 }
