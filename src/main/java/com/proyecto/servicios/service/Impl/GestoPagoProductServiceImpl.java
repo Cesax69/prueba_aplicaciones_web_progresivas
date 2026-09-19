@@ -10,7 +10,7 @@ import com.proyecto.servicios.exception.GestoPagoException;
 import com.proyecto.servicios.model.gestopago.ProductGroupDTO;
 import com.proyecto.servicios.model.gestopago.ProductGroupedResponse;
 import com.proyecto.servicios.model.gestopago.ProductListResponse;
-import com.proyecto.servicios.model.gestopago.CacheDiagnosticResponse;
+import com.proyecto.servicios.enums.DataSourceEnum;
 import com.proyecto.servicios.repositorys.gestopago.GestoPagoProductCacheRepository;
 import com.proyecto.servicios.service.GestoPagoProductService;
 import com.proyecto.servicios.service.GestoPagoTokenService;
@@ -101,6 +101,8 @@ public class GestoPagoProductServiceImpl implements GestoPagoProductService {
                 }
             }
             flatResponse.setData(flatList);
+            flatResponse.setCodigoCache(agrupados.getCodigoCache());
+            flatResponse.setOrigenCache(agrupados.getOrigenCache());
             return flatResponse;
 
         } finally {
@@ -116,9 +118,11 @@ public class GestoPagoProductServiceImpl implements GestoPagoProductService {
     public ProductGroupedResponse obtenerProductosAgrupados() {
         log.info("Iniciando obtención de productos agrupados por tipoFront");
         try {
-            // 1. Intentar servir desde Redis (ahora guarda agrupados)
-            ProductGroupedResponse desdeRedis = obtenerDesdeRedis();
-            if (desdeRedis != null) {
+            // 1. Intentar servir desde Redis
+            String json = redisTemplate.opsForValue().get(REDIS_KEY);
+            if (json != null && !json.isEmpty()) {
+                ProductGroupedResponse desdeRedis = objectMapper.readValue(json, ProductGroupedResponse.class);
+                desdeRedis.setOrigenDatos(DataSourceEnum.EXITO);
                 log.info("Productos agrupados obtenidos desde caché Redis");
                 return desdeRedis;
             }
@@ -128,12 +132,31 @@ public class GestoPagoProductServiceImpl implements GestoPagoProductService {
             
             // 3. Agrupar
             ProductGroupedResponse groupedResponse = agruparProductos(listaPlana);
+            groupedResponse.setOrigenDatos(DataSourceEnum.EXITO);
             
             // 4. Guardar agrupados en caché
             guardarEnCache(groupedResponse);
             
             return groupedResponse;
 
+        } catch (Exception eRedis) {
+            log.warn("Error leyendo de Redis, intentando BD de respaldo: {}", eRedis.getMessage());
+            try {
+                GestoPagoProductCache cacheBd = productCacheRepository.findTopByOrderByFechaActualizacionDesc().orElse(null);
+                if (cacheBd != null && cacheBd.getProductosJson() != null) {
+                    ProductGroupedResponse datos = objectMapper.readValue(cacheBd.getProductosJson(), ProductGroupedResponse.class);
+                    datos.setOrigenDatos(DataSourceEnum.ERROR_REDIS);
+                    return datos;
+                }
+                throw new RuntimeException("Caché en BD vacía");
+            } catch (Exception eBd) {
+                log.error("Fallo lectura BD de respaldo: {}", eBd.getMessage());
+                ProductGroupedResponse fallbackResponse = new ProductGroupedResponse();
+                fallbackResponse.setStatus("ERROR");
+                fallbackResponse.setMessage("Error al obtener productos: " + eBd.getMessage());
+                fallbackResponse.setOrigenDatos(DataSourceEnum.ERROR_BD);
+                return fallbackResponse;
+            }
         } finally {
             log.info("Fin de la obtención de productos agrupados");
         }
@@ -193,51 +216,6 @@ public class GestoPagoProductServiceImpl implements GestoPagoProductService {
         }
     }
 
-    @Override
-    public CacheDiagnosticResponse comprobarCache() {
-        log.info("Ejecutando diagnóstico de caché GestoPago...");
-        // 1. Probar Redis
-        try {
-            String json = redisTemplate.opsForValue().get(REDIS_KEY);
-            if (json != null && !json.isEmpty()) {
-                ProductGroupedResponse datos = objectMapper.readValue(json, ProductGroupedResponse.class);
-                return CacheDiagnosticResponse.builder()
-                        .codigo(0)
-                        .origen("REDIS")
-                        .mensaje("Éxito. Datos obtenidos desde Redis.")
-                        .datos(datos)
-                        .build();
-            } else {
-                throw new RuntimeException("Caché de Redis está vacía");
-            }
-        } catch (Exception eRedis) {
-            log.warn("Diagnostic: Error o vacío en Redis: {}", eRedis.getMessage());
-            
-            // 2. Si falla Redis, probar BD
-            try {
-                GestoPagoProductCache cacheBd = productCacheRepository.findTopByOrderByFechaActualizacionDesc().orElse(null);
-                if (cacheBd != null && cacheBd.getProductosJson() != null) {
-                    ProductGroupedResponse datos = objectMapper.readValue(cacheBd.getProductosJson(), ProductGroupedResponse.class);
-                    return CacheDiagnosticResponse.builder()
-                            .codigo(1)
-                            .origen("BASE_DE_DATOS")
-                            .mensaje("Error/Vacío en Redis. Datos leídos desde BD de respaldo. Causa Redis: " + eRedis.getMessage())
-                            .datos(datos)
-                            .build();
-                } else {
-                    throw new RuntimeException("La tabla de caché en BD está vacía");
-                }
-            } catch (Exception eBd) {
-                log.error("Diagnostic: Error en BD: {}", eBd.getMessage());
-                return CacheDiagnosticResponse.builder()
-                        .codigo(2)
-                        .origen("NINGUNO")
-                        .mensaje("Error en BD (y Redis también falló/vacío). Detalles BD: " + eBd.getMessage())
-                        .build();
-            }
-        }
-    }
-
     // -------------------------------------------------------------------------
     // Métodos privados de apoyo
     // -------------------------------------------------------------------------
@@ -255,6 +233,7 @@ public class GestoPagoProductServiceImpl implements GestoPagoProductService {
             }
         } catch (Exception e) {
             log.warn("No se pudo leer el caché de Redis (clave: {}): {}", REDIS_KEY, e.getMessage());
+            throw new RuntimeException("Error en Redis: " + e.getMessage(), e); // Lanza para activar fallback en método principal
         }
         return null;
     }

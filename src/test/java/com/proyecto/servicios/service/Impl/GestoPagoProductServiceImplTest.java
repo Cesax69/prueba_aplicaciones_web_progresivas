@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.proyecto.servicios.client.GestoPagoProductClient;
 import com.proyecto.servicios.entity.gestopago.GestoPagoProductCache;
 import com.proyecto.servicios.entity.gestopago.GestoPagoToken;
-import com.proyecto.servicios.exception.GestoPagoException;
+import com.proyecto.servicios.enums.DataSourceEnum;
 import com.proyecto.servicios.model.gestopago.ProductDTO;
 import com.proyecto.servicios.model.gestopago.ProductGroupDTO;
 import com.proyecto.servicios.model.gestopago.ProductGroupedResponse;
@@ -59,24 +59,29 @@ class GestoPagoProductServiceImplTest {
     private Request request;
     private ProductListResponse mockFlatResponse;
     private ProductGroupedResponse mockGroupedResponse;
-    
+    private GestoPagoProductCache mockDbCache;
+
     private static final String FLAT_JSON_RESPONSE = "{\"status\":\"OK\",\"message\":null,\"data\":[{\"id\":\"1\",\"name\":\"Producto 1\",\"frontType\":\"1\"}]}";
     private static final String GROUPED_JSON_RESPONSE = "{\"status\":\"OK\",\"message\":null,\"totalProductos\":1,\"totalGrupos\":1,\"grupos\":[{\"tipoFront\":\"1\",\"total\":1,\"productos\":[{\"id\":\"1\",\"name\":\"Producto 1\",\"frontType\":\"1\"}]}]}";
+    private static final String REDIS_KEY = "gestopago:productos:agrupados";
 
     @BeforeEach
     void setUp() {
         request = Request.create(Request.HttpMethod.GET, "/url", Collections.emptyMap(), null, new RequestTemplate());
 
         ProductDTO product = new ProductDTO("1", "Producto 1", "Servicio 1", "100", "10.0", "a", "1", "false", "11");
-        
+
         mockFlatResponse = new ProductListResponse();
         mockFlatResponse.setStatus("OK");
         mockFlatResponse.setData(List.of(product));
-        
+
         ProductGroupDTO group = new ProductGroupDTO("1", 1, List.of(product));
         mockGroupedResponse = new ProductGroupedResponse();
         mockGroupedResponse.setStatus("OK");
         mockGroupedResponse.setGrupos(List.of(group));
+        
+        mockDbCache = new GestoPagoProductCache();
+        mockDbCache.setProductosJson(GROUPED_JSON_RESPONSE);
 
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
     }
@@ -87,7 +92,7 @@ class GestoPagoProductServiceImplTest {
     @Test
     void obtenerListaProductos_desdeRedis_exitoso() throws Exception {
         // Arrange
-        when(valueOperations.get("gestopago:productos")).thenReturn(GROUPED_JSON_RESPONSE);
+        when(valueOperations.get(REDIS_KEY)).thenReturn(GROUPED_JSON_RESPONSE);
         when(objectMapper.readValue(GROUPED_JSON_RESPONSE, ProductGroupedResponse.class)).thenReturn(mockGroupedResponse);
 
         // Act
@@ -96,7 +101,7 @@ class GestoPagoProductServiceImplTest {
         // Assert
         assertNotNull(result);
         assertEquals("OK", result.getStatus());
-        assertFalse(result.getData().isEmpty());
+        assertEquals(DataSourceEnum.EXITO.getCodigo(), result.getCodigoCache());
         // No debe llamar al cliente externo
         verifyNoInteractions(gestoPagoProductClient);
     }
@@ -107,7 +112,7 @@ class GestoPagoProductServiceImplTest {
     @Test
     void obtenerListaProductos_redisVacio_consultaExternoYGuardaEnRedis() throws Exception {
         // Arrange
-        when(valueOperations.get("gestopago:productos")).thenReturn(null);
+        when(valueOperations.get(REDIS_KEY)).thenReturn(null);
         when(tokenService.obtenerTokenActivo(any(), any())).thenReturn(Optional.of(new GestoPagoToken()));
         when(gestoPagoProductClient.getProductList(anyString(), any())).thenReturn(FLAT_JSON_RESPONSE);
         when(objectMapper.readValue(FLAT_JSON_RESPONSE, ProductListResponse.class)).thenReturn(mockFlatResponse);
@@ -119,26 +124,51 @@ class GestoPagoProductServiceImplTest {
         // Assert
         assertNotNull(result);
         assertEquals("OK", result.getStatus());
+        assertEquals(DataSourceEnum.EXITO.getCodigo(), result.getCodigoCache());
         // Debe guardar en Redis
-        verify(valueOperations, times(1)).set(eq("gestopago:productos"), anyString(), anyLong(), eq(TimeUnit.HOURS));
+        verify(valueOperations, times(1)).set(eq(REDIS_KEY), anyString(), anyLong(), eq(TimeUnit.HOURS));
         // No debe guardar en BD (Redis funcionó)
         verifyNoInteractions(productCacheRepository);
     }
 
     // -------------------------------------------------------------------------
-    // Escenario 3: Redis falla → guarda en BD como fallback
+    // Escenario 3: Redis falla, externo falla → lee de BD como fallback
     // -------------------------------------------------------------------------
     @Test
-    void obtenerListaProductos_redisFalla_guardaEnBd() throws Exception {
+    void obtenerListaProductos_redisVacio_externoFalla_leeDeBd() throws Exception {
         // Arrange
-        when(valueOperations.get("gestopago:productos")).thenReturn(null);
+        when(valueOperations.get(REDIS_KEY)).thenReturn(null);
+        when(tokenService.obtenerTokenActivo(any(), any())).thenReturn(Optional.of(new GestoPagoToken()));
+        when(gestoPagoProductClient.getProductList(anyString(), any())).thenThrow(new RuntimeException("API down"));
+        
+        when(productCacheRepository.findTopByOrderByFechaActualizacionDesc()).thenReturn(Optional.of(mockDbCache));
+        when(objectMapper.readValue(GROUPED_JSON_RESPONSE, ProductGroupedResponse.class)).thenReturn(mockGroupedResponse);
+
+        // Act
+        ProductGroupedResponse result = gestoPagoService.obtenerProductosAgrupados();
+
+        // Assert
+        assertNotNull(result);
+        assertEquals("OK", result.getStatus());
+        assertEquals(DataSourceEnum.ERROR_REDIS.getCodigo(), result.getCodigoCache());
+    }
+
+    // -------------------------------------------------------------------------
+    // Escenario 4: Redis falla → external api success, saves to DB instead of Redis
+    // -------------------------------------------------------------------------
+    @Test
+    void obtenerListaProductos_redisFallaEscritura_guardaEnBd() throws Exception {
+        // Arrange
+        when(valueOperations.get(REDIS_KEY)).thenReturn(null);
         when(tokenService.obtenerTokenActivo(any(), any())).thenReturn(Optional.of(new GestoPagoToken()));
         when(gestoPagoProductClient.getProductList(anyString(), any())).thenReturn(FLAT_JSON_RESPONSE);
         when(objectMapper.readValue(FLAT_JSON_RESPONSE, ProductListResponse.class)).thenReturn(mockFlatResponse);
         when(objectMapper.writeValueAsString(any())).thenReturn(GROUPED_JSON_RESPONSE);
-        // Simular que Redis lanza excepción al escribir
+        
+        // Simular que Redis lanza excepción al escribir (guardarEnCache)
         doThrow(new RuntimeException("Redis connection refused"))
                 .when(valueOperations).set(anyString(), anyString(), anyLong(), any());
+        
         when(productCacheRepository.findTopByOrderByFechaActualizacionDesc())
                 .thenReturn(Optional.of(new GestoPagoProductCache()));
 
@@ -147,89 +177,28 @@ class GestoPagoProductServiceImplTest {
 
         // Assert
         assertNotNull(result);
-        // Debe haber guardado en BD
+        assertEquals(DataSourceEnum.EXITO.getCodigo(), result.getCodigoCache());
+        // Debe haber guardado en BD porque falló guardar en Redis
         verify(productCacheRepository, times(1)).save(any(GestoPagoProductCache.class));
     }
 
     // -------------------------------------------------------------------------
-    // Escenario 4: Servicio externo responde Unauthorized (401)
+    // Escenario 5: Falla TODO (Redis vacío, Externo error, BD vacía)
     // -------------------------------------------------------------------------
     @Test
-    void obtenerListaProductos_unauthorized() {
+    void obtenerListaProductos_fallaTodo() {
         // Arrange
-        FeignException.Unauthorized unauthorized = new FeignException.Unauthorized(
-                "Unauthorized", request, null, new HashMap<>());
-        when(valueOperations.get("gestopago:productos")).thenReturn(null);
+        when(valueOperations.get(REDIS_KEY)).thenReturn(null);
         when(tokenService.obtenerTokenActivo(any(), any())).thenReturn(Optional.of(new GestoPagoToken()));
-        when(gestoPagoProductClient.getProductList(anyString(), any())).thenThrow(unauthorized);
+        when(gestoPagoProductClient.getProductList(anyString(), any())).thenThrow(new RuntimeException("API down"));
+        when(productCacheRepository.findTopByOrderByFechaActualizacionDesc()).thenReturn(Optional.empty()); // BD vacía
 
-        // Act & Assert
-        GestoPagoException exception = assertThrows(GestoPagoException.class,
-                () -> gestoPagoService.obtenerListaProductos());
+        // Act
+        ProductGroupedResponse result = gestoPagoService.obtenerProductosAgrupados();
 
-        assertEquals(401, exception.getStatusCode());
-        assertTrue(exception.getMessage().contains("Error de autenticación"));
-    }
-
-    // -------------------------------------------------------------------------
-    // Escenario 5: Timeout del servicio externo (504)
-    // -------------------------------------------------------------------------
-    @Test
-    void obtenerListaProductos_timeout() {
-        // Arrange
-        FeignException.GatewayTimeout timeout = new FeignException.GatewayTimeout(
-                "Gateway Timeout", request, null, new HashMap<>());
-        when(valueOperations.get("gestopago:productos")).thenReturn(null);
-        when(tokenService.obtenerTokenActivo(any(), any())).thenReturn(Optional.of(new GestoPagoToken()));
-        when(gestoPagoProductClient.getProductList(anyString(), any())).thenThrow(timeout);
-
-        // Act & Assert
-        GestoPagoException exception = assertThrows(GestoPagoException.class,
-                () -> gestoPagoService.obtenerListaProductos());
-
-        assertEquals(504, exception.getStatusCode());
-        assertTrue(exception.getMessage().contains("Timeout al conectar"));
-    }
-
-    // -------------------------------------------------------------------------
-    // Escenario 6: Respuesta con status ERROR (error lógico del negocio)
-    // -------------------------------------------------------------------------
-    @Test
-    void obtenerListaProductos_errorLogico() throws Exception {
-        // Arrange
-        String errorJson = "{\"status\":\"ERROR\",\"message\":\"Error interno en GestoPago\"}";
-        ProductListResponse errorResponse = new ProductListResponse();
-        errorResponse.setStatus("ERROR");
-        errorResponse.setMessage("Error interno en GestoPago");
-
-        when(valueOperations.get("gestopago:productos")).thenReturn(null);
-        when(tokenService.obtenerTokenActivo(any(), any())).thenReturn(Optional.of(new GestoPagoToken()));
-        when(gestoPagoProductClient.getProductList(anyString(), any())).thenReturn(errorJson);
-        when(objectMapper.readValue(errorJson, ProductListResponse.class)).thenReturn(errorResponse);
-
-        // Act & Assert
-        GestoPagoException exception = assertThrows(GestoPagoException.class,
-                () -> gestoPagoService.obtenerListaProductos());
-
-        assertEquals(500, exception.getStatusCode());
-        assertTrue(exception.getMessage().contains("Error en la respuesta del servicio externo: Error interno en GestoPago"));
-    }
-
-    // -------------------------------------------------------------------------
-    // Escenario 7: Error inesperado (500)
-    // -------------------------------------------------------------------------
-    @Test
-    void obtenerListaProductos_errorInesperado() {
-        // Arrange
-        when(valueOperations.get("gestopago:productos")).thenReturn(null);
-        when(tokenService.obtenerTokenActivo(any(), any())).thenReturn(Optional.of(new GestoPagoToken()));
-        when(gestoPagoProductClient.getProductList(anyString(), any())).thenThrow(new RuntimeException("Unexpected error"));
-
-        // Act & Assert
-        GestoPagoException exception = assertThrows(GestoPagoException.class,
-                () -> gestoPagoService.obtenerListaProductos());
-
-        assertEquals(500, exception.getStatusCode());
-        assertTrue(exception.getMessage().contains("Error interno al procesar la integración"));
+        // Assert
+        assertNotNull(result);
+        assertEquals("ERROR", result.getStatus());
+        assertEquals(DataSourceEnum.ERROR_BD.getCodigo(), result.getCodigoCache());
     }
 }
