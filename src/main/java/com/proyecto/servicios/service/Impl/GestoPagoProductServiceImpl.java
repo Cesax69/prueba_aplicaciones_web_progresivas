@@ -7,6 +7,8 @@ import com.proyecto.servicios.client.GestoPagoProductClient;
 import com.proyecto.servicios.entity.gestopago.GestoPagoProductCache;
 import com.proyecto.servicios.entity.gestopago.GestoPagoToken;
 import com.proyecto.servicios.exception.GestoPagoException;
+import com.proyecto.servicios.model.gestopago.ProductGroupDTO;
+import com.proyecto.servicios.model.gestopago.ProductGroupedResponse;
 import com.proyecto.servicios.model.gestopago.ProductListResponse;
 import com.proyecto.servicios.repositorys.gestopago.GestoPagoProductCacheRepository;
 import com.proyecto.servicios.service.GestoPagoProductService;
@@ -18,8 +20,12 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * Implementación del servicio de productos de GestoPago.
@@ -96,6 +102,64 @@ public class GestoPagoProductServiceImpl implements GestoPagoProductService {
 
         } finally {
             log.info("Fin de la invocación al servicio de productos GestoPago");
+        }
+    }
+
+    /**
+     * Obtiene los productos agrupados por {@code tipoFront}.
+     * Reutiliza la caché de Redis para no llamar al servicio externo innecesariamente.
+     */
+    @Override
+    public ProductGroupedResponse obtenerProductosAgrupados() {
+        log.info("Iniciando obtención de productos agrupados por tipoFront");
+        try {
+            // Reutiliza la misma lógica de caché del método base
+            ProductListResponse listaPlana = obtenerListaProductos();
+
+            if (listaPlana == null || listaPlana.getData() == null || listaPlana.getData().isEmpty()) {
+                log.warn("No se obtuvieron productos para agrupar");
+                return ProductGroupedResponse.builder()
+                        .status("VACIO")
+                        .message("No se encontraron productos")
+                        .totalProductos(0)
+                        .totalGrupos(0)
+                        .grupos(List.of())
+                        .build();
+            }
+
+            // Agrupar por tipoFront usando Stream API
+            Map<String, List<com.proyecto.servicios.model.gestopago.ProductDTO>> agrupados = listaPlana.getData().stream()
+                    .filter(p -> p.getFrontType() != null)
+                    .collect(Collectors.groupingBy(
+                            com.proyecto.servicios.model.gestopago.ProductDTO::getFrontType,
+                            Collectors.toList()
+                    ));
+
+            // Convertir a lista de ProductGroupDTO, ordenada por tipoFront
+            List<ProductGroupDTO> grupos = agrupados.entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey(Comparator.comparingInt(k -> {
+                        try { return Integer.parseInt(k); } catch (NumberFormatException e) { return Integer.MAX_VALUE; }
+                    })))
+                    .map(entry -> ProductGroupDTO.builder()
+                            .tipoFront(entry.getKey())
+                            .total(entry.getValue().size())
+                            .productos(entry.getValue())
+                            .build())
+                    .collect(Collectors.toList());
+
+            log.info("Productos agrupados correctamente: {} grupos, {} productos en total",
+                    grupos.size(), listaPlana.getData().size());
+
+            return ProductGroupedResponse.builder()
+                    .status("OK")
+                    .message(listaPlana.getMessage())
+                    .totalProductos(listaPlana.getData().size())
+                    .totalGrupos(grupos.size())
+                    .grupos(grupos)
+                    .build();
+
+        } finally {
+            log.info("Fin de la obtención de productos agrupados");
         }
     }
 
