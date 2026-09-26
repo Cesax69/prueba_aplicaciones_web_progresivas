@@ -65,6 +65,11 @@ public class ClienteController {
         return ResponseEntity.ok(clienteService.obtenerClientePorCorreo(correo));
     }
 
+    @GetMapping("/buscar/cuenta")
+    public ResponseEntity<ClienteResponseDTO> buscarPorCuenta(@RequestParam String numeroCuenta) {
+        return ResponseEntity.ok(clienteService.obtenerClientePorNumeroCuenta(numeroCuenta));
+    }
+
     @GetMapping("/activos")
     public ResponseEntity<List<ClienteResponseDTO>> obtenerActivos() {
         return ResponseEntity.ok(clienteService.obtenerClientesActivos());

@@ -25,6 +25,27 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse(ex.getStatusCode(), ex.getMessage(), LocalDateTime.now()));
     }
 
+    @ExceptionHandler(CurpDuplicadaException.class)
+    public ResponseEntity<ErrorResponse> handleCurpDuplicada(CurpDuplicadaException ex) {
+        log.error("CURP duplicada", ex);
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErrorResponse(ex.getStatusCode(), ex.getMessage(), LocalDateTime.now()));
+    }
+
+    @ExceptionHandler(RfcDuplicadoException.class)
+    public ResponseEntity<ErrorResponse> handleRfcDuplicado(RfcDuplicadoException ex) {
+        log.error("RFC duplicado", ex);
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErrorResponse(ex.getStatusCode(), ex.getMessage(), LocalDateTime.now()));
+    }
+
+    @ExceptionHandler(CorreoDuplicadoException.class)
+    public ResponseEntity<ErrorResponse> handleCorreoDuplicado(CorreoDuplicadoException ex) {
+        log.error("Correo duplicado", ex);
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErrorResponse(ex.getStatusCode(), ex.getMessage(), LocalDateTime.now()));
+    }
+
     @ExceptionHandler(ClienteYaRegistradoException.class)
     public ResponseEntity<ErrorResponse> handleClienteYaRegistrado(ClienteYaRegistradoException ex) {
         log.error("Cliente ya registrado", ex);
