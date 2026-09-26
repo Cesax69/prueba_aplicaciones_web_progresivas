@@ -115,6 +115,14 @@ public class ClienteServiceImpl implements ClienteService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public ClienteResponseDTO obtenerClientePorNumeroCuenta(String numeroCuenta) {
+        Cuenta cuenta = cuentaRepository.findByNumeroCuenta(numeroCuenta)
+                .orElseThrow(() -> new CuentaNoEncontradaException("Cuenta no encontrada: " + numeroCuenta));
+        return mapToResponse(cuenta.getCliente());
+    }
+
+    @Override
     @Transactional
     public ClienteResponseDTO actualizarCliente(Long id, ClienteRequestDTO request) {
         Cliente cliente = clienteRepository.findById(id)
@@ -136,7 +144,7 @@ public class ClienteServiceImpl implements ClienteService {
         // Correo (validar unicidad si cambia)
         if (!cliente.getCorreo().equals(request.getCorreo())) {
             if (clienteRepository.existsByCorreo(request.getCorreo())) {
-                throw new ClienteYaRegistradoException("El correo ya está registrado en otra cuenta");
+                throw new CorreoDuplicadoException("El correo ya está registrado en otra cuenta");
             }
             cliente.setCorreo(request.getCorreo());
         }
@@ -214,13 +222,13 @@ public class ClienteServiceImpl implements ClienteService {
         }
         // Validar unicidad
         if (clienteRepository.existsByCurp(request.getCurp())) {
-            throw new ClienteYaRegistradoException("La CURP ya se encuentra registrada");
+            throw new CurpDuplicadaException("La CURP ya se encuentra registrada");
         }
         if (clienteRepository.existsByRfc(request.getRfc())) {
-            throw new ClienteYaRegistradoException("El RFC ya se encuentra registrado");
+            throw new RfcDuplicadoException("El RFC ya se encuentra registrado");
         }
         if (clienteRepository.existsByCorreo(request.getCorreo())) {
-            throw new ClienteYaRegistradoException("El correo electrónico ya se encuentra registrado");
+            throw new CorreoDuplicadoException("El correo electrónico ya se encuentra registrado");
         }
     }
 
