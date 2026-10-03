@@ -30,9 +30,9 @@ public class ClienteRequestDTO {
     @Size(min = 3, max = 50, message = "El apellido materno debe tener entre 3 y 50 caracteres")
     private String apellidoMaterno;
 
-    @NotNull(message = "La fecha de nacimiento es obligatoria")
-    @Past(message = "La fecha de nacimiento no puede ser una fecha futura")
-    private LocalDate fechaNacimiento;
+    @NotBlank(message = "La fecha de nacimiento es obligatoria")
+    @Pattern(regexp = "^\\d{4}[-/]\\d{2}[-/]\\d{2}$", message = "La fecha de nacimiento debe tener el formato yyyy-MM-dd o yyyy/MM/dd")
+    private String fechaNacimiento;
 
     @NotBlank(message = "La CURP es obligatoria")
     @Pattern(regexp = "^[A-Z]{4}\\d{6}[HM][A-Z]{5}[A-Z\\d]\\d$", message = "El formato de la CURP es inválido. Solo se aceptan letras mayúsculas y dígitos en el formato correcto")

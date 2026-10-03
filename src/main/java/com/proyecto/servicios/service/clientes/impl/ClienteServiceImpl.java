@@ -134,7 +134,7 @@ public class ClienteServiceImpl implements ClienteService {
         cliente.setSegundoNombre(request.getSegundoNombre());
         cliente.setApellidoPaterno(request.getApellidoPaterno());
         cliente.setApellidoMaterno(request.getApellidoMaterno());
-        cliente.setFechaNacimiento(request.getFechaNacimiento());
+        cliente.setFechaNacimiento(parseFecha(request.getFechaNacimiento()));
         cliente.setSexo(request.getSexo());
         // Resolver descripción de nacionalidad desde el catálogo
         String descNacionalidad = catalogoRepository.findById(request.getNacionalidadId())
@@ -223,8 +223,12 @@ public class ClienteServiceImpl implements ClienteService {
     // --- Métodos Privados Auxiliares ---
 
     private void validarReglasNegocio(ClienteRequestDTO request) {
+        LocalDate fechaNac = parseFecha(request.getFechaNacimiento());
+        if (fechaNac.isAfter(LocalDate.now())) {
+            throw new ValidacionException("La fecha de nacimiento no puede ser una fecha futura");
+        }
         // Validar mayoría de edad
-        if (Period.between(request.getFechaNacimiento(), LocalDate.now()).getYears() < 18) {
+        if (Period.between(fechaNac, LocalDate.now()).getYears() < 18) {
             throw new ValidacionException("El cliente debe ser mayor de edad (18 años o más)");
         }
         // Validar que el ID de nacionalidad exista en el catálogo
@@ -250,7 +254,7 @@ public class ClienteServiceImpl implements ClienteService {
         c.setSegundoNombre(req.getSegundoNombre());
         c.setApellidoPaterno(req.getApellidoPaterno());
         c.setApellidoMaterno(req.getApellidoMaterno());
-        c.setFechaNacimiento(req.getFechaNacimiento());
+        c.setFechaNacimiento(parseFecha(req.getFechaNacimiento()));
         c.setCurp(req.getCurp());
         c.setRfc(req.getRfc());
         c.setSexo(req.getSexo());
@@ -406,5 +410,14 @@ public class ClienteServiceImpl implements ClienteService {
         }
         
         return dto;
+    }
+    
+    private LocalDate parseFecha(String fechaStr) {
+        if (fechaStr == null) return null;
+        try {
+            return LocalDate.parse(fechaStr.replace("/", "-"));
+        } catch (Exception e) {
+            throw new ValidacionException("Formato de fecha inválido. Use yyyy-MM-dd o yyyy/MM/dd");
+        }
     }
 }
