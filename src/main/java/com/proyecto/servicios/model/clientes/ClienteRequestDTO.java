@@ -31,7 +31,7 @@ public class ClienteRequestDTO {
     private String apellidoMaterno;
 
     @NotBlank(message = "La fecha de nacimiento es obligatoria")
-    @Pattern(regexp = "^\\d{4}[-/]\\d{2}[-/]\\d{2}$", message = "La fecha de nacimiento debe tener el formato yyyy-MM-dd o yyyy/MM/dd")
+    @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2}$", message = "La fecha de nacimiento debe tener el formato estricto yyyy-MM-dd (ejemplo: 1995-05-10)")
     private String fechaNacimiento;
 
     @NotBlank(message = "La CURP es obligatoria")
