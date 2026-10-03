@@ -415,9 +415,9 @@ public class ClienteServiceImpl implements ClienteService {
     private LocalDate parseFecha(String fechaStr) {
         if (fechaStr == null) return null;
         try {
-            return LocalDate.parse(fechaStr.replace("/", "-"));
+            return LocalDate.parse(fechaStr);
         } catch (Exception e) {
-            throw new ValidacionException("Formato de fecha inválido. Use yyyy-MM-dd o yyyy/MM/dd");
+            throw new ValidacionException("Formato de fecha inválido. Use yyyy-MM-dd");
         }
     }
 }
