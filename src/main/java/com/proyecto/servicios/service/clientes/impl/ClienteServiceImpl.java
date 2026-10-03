@@ -33,6 +33,7 @@ public class ClienteServiceImpl implements ClienteService {
     private final CuentaRepository cuentaRepository;
     private final LoginClienteRepository loginRepository;
     private final DatoBiometricoRepository biometricoRepository;
+    private final CatalogoRepository catalogoRepository;
 
     @Override
     @Transactional
@@ -110,7 +111,7 @@ public class ClienteServiceImpl implements ClienteService {
     @Transactional(readOnly = true)
     public ClienteResponseDTO obtenerClientePorCorreo(String correo) {
         Cliente cliente = clienteRepository.findByCorreo(correo)
-                .orElseThrow(() -> new ClienteNoEncontradoException("Cliente no encontrado con Correo: " + correo));
+                .orElseThrow(() -> new ClienteNoEncontradoException("El correo electrónico '" + correo + "' no está registrado en el sistema"));
         return mapToResponse(cliente);
     }
 
@@ -135,7 +136,13 @@ public class ClienteServiceImpl implements ClienteService {
         cliente.setApellidoMaterno(request.getApellidoMaterno());
         cliente.setFechaNacimiento(request.getFechaNacimiento());
         cliente.setSexo(request.getSexo());
-        cliente.setNacionalidad(request.getNacionalidad());
+        // Resolver descripción de nacionalidad desde el catálogo
+        String descNacionalidad = catalogoRepository.findById(request.getNacionalidadId())
+                .filter(c -> "NACIONALIDAD".equals(c.getTipo()) && Boolean.TRUE.equals(c.getActivo()))
+                .map(cat -> cat.getDescripcion())
+                .orElseThrow(() -> new ValidacionException(
+                        "La nacionalidad con ID " + request.getNacionalidadId() + " no existe en el catálogo"));
+        cliente.setNacionalidad(descNacionalidad);
         cliente.setEstadoCivil(request.getEstadoCivil());
         cliente.setOcupacion(request.getOcupacion());
         cliente.setEmpresa(request.getEmpresa());
@@ -220,6 +227,12 @@ public class ClienteServiceImpl implements ClienteService {
         if (Period.between(request.getFechaNacimiento(), LocalDate.now()).getYears() < 18) {
             throw new ValidacionException("El cliente debe ser mayor de edad (18 años o más)");
         }
+        // Validar que el ID de nacionalidad exista en el catálogo
+        catalogoRepository.findById(request.getNacionalidadId())
+                .filter(c -> "NACIONALIDAD".equals(c.getTipo()) && Boolean.TRUE.equals(c.getActivo()))
+                .orElseThrow(() -> new ValidacionException(
+                        "La nacionalidad con ID " + request.getNacionalidadId() +
+                        " no existe en el catálogo. Consulta GET /api/v1/catalogos/NACIONALIDAD"));
         // Validar unicidad
         if (clienteRepository.existsByCurp(request.getCurp())) {
             throw new CurpDuplicadaException("La CURP ya se encuentra registrada");
@@ -241,7 +254,11 @@ public class ClienteServiceImpl implements ClienteService {
         c.setCurp(req.getCurp());
         c.setRfc(req.getRfc());
         c.setSexo(req.getSexo());
-        c.setNacionalidad(req.getNacionalidad());
+        // Resolver descripción de nacionalidad desde el catálogo
+        String descNacionalidad = catalogoRepository.findById(req.getNacionalidadId())
+                .map(cat -> cat.getDescripcion())
+                .orElse("Desconocida");
+        c.setNacionalidad(descNacionalidad);
         c.setEstadoCivil(req.getEstadoCivil());
         c.setCorreo(req.getCorreo());
         c.setTelefonoMovil(req.getTelefonoMovil());
