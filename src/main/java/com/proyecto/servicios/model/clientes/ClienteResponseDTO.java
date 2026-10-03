@@ -1,5 +1,6 @@
 package com.proyecto.servicios.model.clientes;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -12,7 +13,10 @@ public class ClienteResponseDTO {
     private String segundoNombre;
     private String apellidoPaterno;
     private String apellidoMaterno;
+
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
     private LocalDate fechaNacimiento;
+
     private String curp;
     private String rfc;
     private String sexo;
@@ -25,6 +29,8 @@ public class ClienteResponseDTO {
     private String empresa;
     private BigDecimal ingresoMensual;
     private Boolean activo;
+
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime fechaRegistro;
 
     // Domicilio
