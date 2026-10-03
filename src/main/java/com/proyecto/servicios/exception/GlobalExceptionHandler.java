@@ -87,8 +87,33 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(org.springframework.http.converter.HttpMessageNotReadableException ex) {
         log.error("Error de formato en JSON", ex);
+
+        String mensajeEspecifico = "Error en el formato del JSON. Verifique que los tipos de datos sean correctos.";
+
+        Throwable causa = ex.getCause();
+        if (causa instanceof com.fasterxml.jackson.databind.exc.MismatchedInputException mismatch) {
+            String campo = mismatch.getPath().stream()
+                    .map(ref -> ref.getFieldName())
+                    .filter(f -> f != null)
+                    .reduce((a, b) -> a + "." + b)
+                    .orElse(null);
+
+            String tipoCampo = mismatch.getTargetType() != null ? mismatch.getTargetType().getSimpleName() : "desconocido";
+
+            if (campo != null) {
+                if (tipoCampo.equals("BigDecimal") || tipoCampo.equals("Double") || tipoCampo.equals("Float")
+                        || tipoCampo.equals("Long") || tipoCampo.equals("Integer")) {
+                    mensajeEspecifico = "El campo '" + campo + "' debe ser un número sin comillas (ej: " + campo + ": 1234.56). No envíe el valor entre comillas.";
+                } else if (tipoCampo.equals("Long") || tipoCampo.equals("Integer")) {
+                    mensajeEspecifico = "El campo '" + campo + "' debe ser un número entero sin comillas (ej: " + campo + ": 15). No envíe el valor entre comillas.";
+                } else {
+                    mensajeEspecifico = "El campo '" + campo + "' tiene un tipo de dato incorrecto. Se esperaba: " + tipoCampo + ".";
+                }
+            }
+        }
+
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ErrorResponse(400, "Error en el formato del JSON. Asegúrese de que los tipos de datos sean correctos (ej: números sin comillas y texto con comillas).", LocalDateTime.now()));
+                .body(new ErrorResponse(400, mensajeEspecifico, LocalDateTime.now()));
     }
 
     @ExceptionHandler(Exception.class)
