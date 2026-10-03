@@ -87,6 +87,7 @@ public class ClienteRequestDTO {
 
     @NotNull(message = "El ingreso mensual es obligatorio")
     @DecimalMin(value = "0.01", message = "El ingreso mensual debe ser un número mayor a cero")
+    @com.fasterxml.jackson.annotation.JsonFormat(shape = com.fasterxml.jackson.annotation.JsonFormat.Shape.NUMBER_FLOAT)
     private BigDecimal ingresoMensual;
 
     // ───────────────────── DOMICILIO ─────────────────────
