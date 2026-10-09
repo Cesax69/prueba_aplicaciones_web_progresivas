@@ -1,9 +1,9 @@
 [build]
-builder = "nixpacks"
-buildCommand = "./gradlew bootJar -x test -x check"
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "java -Dserver.port=$PORT -jar build/libs/prueba-1.0.jar"
 healthcheckPath = "/actuator/health"
-healthcheckTimeout = 100
+healthcheckTimeout = 120
 restartPolicyType = "on_failure"
+
