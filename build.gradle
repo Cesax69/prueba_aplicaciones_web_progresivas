@@ -30,6 +30,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-mail'
     implementation 'org.springframework.boot:spring-boot-starter-cache'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-freemarker'
     //Documentation y APIs
@@ -59,6 +60,7 @@ dependencies {
     //Serialización
     implementation 'com.google.code.gson:gson:2.10.1'
     implementation 'org.json:json:20231013'
+    implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-xml'
     //Utilerias Google
     implementation 'com.google.api-client:google-api-client:2.7.1'
     implementation 'com.google.api-client:google-api-client-jackson2:2.7.1'
@@ -83,7 +85,7 @@ dependencies {
     implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
-
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 configurations.all {
