@@ -108,71 +108,48 @@ public class ClienteController {
         return ResponseEntity.noContent().build();
     }
 
-    @GetMapping("/buscar/curp")
-    @Operation(summary = "Buscar cliente por CURP")
+    @GetMapping("/buscar")
+    @Operation(summary = "Buscar cliente dinámicamente", description = "Permite buscar un cliente proporcionando exactamente un parámetro: curp, rfc, correo o numeroCuenta")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "Cliente encontrado"),
-        @ApiResponse(responseCode = "404", description = "No existe un cliente con esa CURP",
+        @ApiResponse(responseCode = "404", description = "No existe un cliente con el dato proporcionado",
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
-        @ApiResponse(responseCode = "400", description = "Formato de CURP inválido",
+        @ApiResponse(responseCode = "400", description = "Formato de búsqueda inválido o más de un parámetro proporcionado",
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
-    public ResponseEntity<ClienteResponseDTO> buscarPorCurp(
-            @RequestParam 
-            @NotBlank(message = "La CURP no puede estar vacía")
+    public ResponseEntity<ClienteResponseDTO> buscarCliente(
+            @RequestParam(required = false) 
             @Pattern(regexp = "^[A-Z]{4}\\d{6}[HM][A-Z]{5}[A-Z\\d]\\d$", message = "El formato de la CURP es inválido") 
-            String curp) {
-        return ResponseEntity.ok(clienteService.obtenerClientePorCurp(curp));
-    }
-
-    @GetMapping("/buscar/rfc")
-    @Operation(summary = "Buscar cliente por RFC")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Cliente encontrado"),
-        @ApiResponse(responseCode = "404", description = "No existe un cliente con ese RFC",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
-        @ApiResponse(responseCode = "400", description = "Formato de RFC inválido",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
-    })
-    public ResponseEntity<ClienteResponseDTO> buscarPorRfc(
-            @RequestParam 
-            @NotBlank(message = "El RFC no puede estar vacío")
+            String curp,
+            
+            @RequestParam(required = false) 
             @Pattern(regexp = "^[A-Z&Ñ]{3,4}\\d{6}[A-Z\\d]{3}$", message = "El formato del RFC es inválido") 
-            String rfc) {
-        return ResponseEntity.ok(clienteService.obtenerClientePorRfc(rfc));
-    }
-
-    @GetMapping("/buscar/correo")
-    @Operation(summary = "Buscar cliente por correo electrónico")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Cliente encontrado"),
-        @ApiResponse(responseCode = "404", description = "No existe un cliente con ese correo",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
-        @ApiResponse(responseCode = "400", description = "Formato de correo inválido",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
-    })
-    public ResponseEntity<ClienteResponseDTO> buscarPorCorreo(
-            @RequestParam 
-            @NotBlank(message = "El correo no puede estar vacío")
+            String rfc,
+            
+            @RequestParam(required = false) 
             @Pattern(regexp = "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,6}$", message = "El formato del correo es inválido") 
-            String correo) {
-        return ResponseEntity.ok(clienteService.obtenerClientePorCorreo(correo));
-    }
-
-    @GetMapping("/buscar/cuenta")
-    @Operation(summary = "Buscar cliente por número de cuenta")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Cliente encontrado"),
-        @ApiResponse(responseCode = "404", description = "No existe una cuenta con ese número",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
-        @ApiResponse(responseCode = "400", description = "Formato de número de cuenta inválido",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
-    })
-    public ResponseEntity<ClienteResponseDTO> buscarPorCuenta(
-            @RequestParam 
-            @NotBlank(message = "El número de cuenta no puede estar vacío")
+            String correo,
+            
+            @RequestParam(required = false) 
             @Pattern(regexp = "^\\d{10}$", message = "El número de cuenta debe tener 10 dígitos numéricos") 
             String numeroCuenta) {
+
+        int parametrosProporcionados = 0;
+        if (curp != null && !curp.isBlank()) parametrosProporcionados++;
+        if (rfc != null && !rfc.isBlank()) parametrosProporcionados++;
+        if (correo != null && !correo.isBlank()) parametrosProporcionados++;
+        if (numeroCuenta != null && !numeroCuenta.isBlank()) parametrosProporcionados++;
+
+        if (parametrosProporcionados == 0) {
+            throw new com.proyecto.servicios.exception.ValidacionException("Debe proporcionar al menos un criterio de búsqueda (curp, rfc, correo o numeroCuenta)");
+        }
+        if (parametrosProporcionados > 1) {
+            throw new com.proyecto.servicios.exception.ValidacionException("Debe proporcionar solo un criterio de búsqueda a la vez");
+        }
+
+        if (curp != null && !curp.isBlank()) return ResponseEntity.ok(clienteService.obtenerClientePorCurp(curp));
+        if (rfc != null && !rfc.isBlank()) return ResponseEntity.ok(clienteService.obtenerClientePorRfc(rfc));
+        if (correo != null && !correo.isBlank()) return ResponseEntity.ok(clienteService.obtenerClientePorCorreo(correo));
         return ResponseEntity.ok(clienteService.obtenerClientePorNumeroCuenta(numeroCuenta));
     }
 
