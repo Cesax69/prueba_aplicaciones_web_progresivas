@@ -67,7 +67,7 @@ public class ClienteController {
     public ResponseEntity<ClienteResponseDTO> obtenerPorCurp(
             @PathVariable 
             @NotBlank(message = "La CURP no puede estar vacía")
-            @Pattern(regexp = "^[A-Z]{4}\\d{6}[HM][A-Z]{5}[A-Z\\d]\\d$", message = "El formato de la CURP es inválido") 
+            @Pattern(regexp = "^[A-Z]{4}\\d{6}[HM][A-Z]{5}[A-Z\\d]\\d$", message = "El formato de la CURP es inválido. Solo se aceptan 18 caracteres alfanuméricos en mayúscula") 
             String curp) {
         return ResponseEntity.ok(clienteService.obtenerClientePorCurp(curp));
     }
@@ -84,7 +84,7 @@ public class ClienteController {
     public ResponseEntity<ClienteResponseDTO> actualizarCliente(
             @PathVariable 
             @NotBlank(message = "La CURP no puede estar vacía")
-            @Pattern(regexp = "^[A-Z]{4}\\d{6}[HM][A-Z]{5}[A-Z\\d]\\d$", message = "El formato de la CURP es inválido") 
+            @Pattern(regexp = "^[A-Z]{4}\\d{6}[HM][A-Z]{5}[A-Z\\d]\\d$", message = "El formato de la CURP es inválido. Solo se aceptan 18 caracteres alfanuméricos en mayúscula") 
             String curp,
             @Valid @RequestBody ClienteRequestDTO request) {
         return ResponseEntity.ok(clienteService.actualizarCliente(curp, request));
@@ -102,7 +102,7 @@ public class ClienteController {
     public ResponseEntity<Void> desactivarCliente(
             @PathVariable 
             @NotBlank(message = "La CURP no puede estar vacía")
-            @Pattern(regexp = "^[A-Z]{4}\\d{6}[HM][A-Z]{5}[A-Z\\d]\\d$", message = "El formato de la CURP es inválido") 
+            @Pattern(regexp = "^[A-Z]{4}\\d{6}[HM][A-Z]{5}[A-Z\\d]\\d$", message = "El formato de la CURP es inválido. Solo se aceptan 18 caracteres alfanuméricos en mayúscula") 
             String curp) {
         clienteService.desactivarCliente(curp);
         return ResponseEntity.noContent().build();
@@ -119,11 +119,11 @@ public class ClienteController {
     })
     public ResponseEntity<ClienteResponseDTO> buscarCliente(
             @RequestParam(required = false) 
-            @Pattern(regexp = "^[A-Z]{4}\\d{6}[HM][A-Z]{5}[A-Z\\d]\\d$", message = "El formato de la CURP es inválido") 
+            @Pattern(regexp = "^[A-Z]{4}\\d{6}[HM][A-Z]{5}[A-Z\\d]\\d$", message = "El formato de la CURP es inválido. Solo se aceptan 18 caracteres alfanuméricos en mayúscula") 
             String curp,
             
             @RequestParam(required = false) 
-            @Pattern(regexp = "^[A-Z&Ñ]{3,4}\\d{6}[A-Z\\d]{3}$", message = "El formato del RFC es inválido") 
+            @Pattern(regexp = "^[A-Z&Ñ]{3,4}\\d{6}[A-Z\\d]{3}$", message = "El formato del RFC es inválido. Debe tener 12 o 13 caracteres alfanuméricos en mayúscula") 
             String rfc,
             
             @RequestParam(required = false) 
@@ -131,7 +131,7 @@ public class ClienteController {
             String correo,
             
             @RequestParam(required = false) 
-            @Pattern(regexp = "^\\d{10}$", message = "El número de cuenta debe tener 10 dígitos numéricos") 
+            @Pattern(regexp = "^\\d{10}$", message = "El número de cuenta debe tener exactamente 10 dígitos numéricos") 
             String numeroCuenta) {
 
         int parametrosProporcionados = 0;
