@@ -198,8 +198,11 @@ public class ClienteServiceImpl implements ClienteService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ClienteResponseDTO> obtenerClientesPorRangoFechas(LocalDateTime inicio, LocalDateTime fin) {
-        return clienteRepository.findByFechaRegistroBetweenOrderByFechaRegistroAsc(inicio, fin).stream()
+    public List<ClienteResponseDTO> obtenerClientesPorRangoFechas(LocalDate inicio, LocalDate fin) {
+        // Convertir LocalDate a LocalDateTime: inicio = 00:00:00, fin = 23:59:59
+        LocalDateTime inicioDT = inicio.atStartOfDay();
+        LocalDateTime finDT = fin.atTime(23, 59, 59);
+        return clienteRepository.findByFechaRegistroBetweenOrderByFechaRegistroAsc(inicioDT, finDT).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }

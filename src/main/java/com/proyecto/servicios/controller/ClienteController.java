@@ -23,6 +23,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -184,15 +185,18 @@ public class ClienteController {
     }
 
     @GetMapping("/rango-fechas")
-    @Operation(summary = "Obtener clientes por rango de fechas de registro")
+    @Operation(summary = "Obtener clientes por rango de fechas de registro",
+            description = "Filtra clientes por fecha de registro. Formato: yyyy-MM-dd (ejemplo: 2024-01-01)")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "Lista obtenida exitosamente"),
-        @ApiResponse(responseCode = "400", description = "Faltan parámetros de fecha requeridos o formato inválido",
+        @ApiResponse(responseCode = "400", description = "Formato de fecha inválido (use yyyy-MM-dd) o parámetro faltante",
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<List<ClienteResponseDTO>> obtenerPorRangoFechas(
-            @RequestParam @NotNull(message = "La fecha de inicio es requerida") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime inicio,
-            @RequestParam @NotNull(message = "La fecha de fin es requerida") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fin) {
+            @RequestParam @NotNull(message = "La fecha de inicio es requerida. Formato: yyyy-MM-dd")
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate inicio,
+            @RequestParam @NotNull(message = "La fecha de fin es requerida. Formato: yyyy-MM-dd")
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fin) {
         return ResponseEntity.ok(clienteService.obtenerClientesPorRangoFechas(inicio, fin));
     }
 }
