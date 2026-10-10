@@ -92,8 +92,8 @@ public class ClienteController {
         return ResponseEntity.noContent().build();
     }
 
-    @GetMapping("/buscar")
-    @Operation(summary = "Buscar cliente dinámicamente", description = "Permite buscar un cliente proporcionando exactamente un parámetro: curp, rfc, correo o numeroCuenta")
+    @PostMapping("/buscar")
+    @Operation(summary = "Buscar cliente dinámicamente", description = "Permite buscar un cliente enviando un JSON con curp, rfc, correo o numeroCuenta")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "Cliente encontrado"),
         @ApiResponse(responseCode = "404", description = "No existe un cliente con el dato proporcionado",
@@ -102,21 +102,12 @@ public class ClienteController {
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<ClienteResponseDTO> buscarCliente(
-            @RequestParam(required = false) 
-            @Pattern(regexp = "^$|^[A-Z]{4}\\d{6}[HM][A-Z]{5}[A-Z\\d]\\d$", message = "El formato de la CURP es inválido. Solo se aceptan 18 caracteres alfanuméricos en mayúscula") 
-            String curp,
-            
-            @RequestParam(required = false) 
-            @Pattern(regexp = "^$|^[A-Z&Ñ]{3,4}\\d{6}[A-Z\\d]{3}$", message = "El formato del RFC es inválido. Debe tener 12 o 13 caracteres alfanuméricos en mayúscula") 
-            String rfc,
-            
-            @RequestParam(required = false) 
-            @Pattern(regexp = "^$|^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,6}$", message = "El formato del correo es inválido") 
-            String correo,
-            
-            @RequestParam(required = false) 
-            @Pattern(regexp = "^$|^\\d{10}$", message = "El número de cuenta debe tener exactamente 10 dígitos numéricos") 
-            String numeroCuenta) {
+            @Valid @RequestBody com.proyecto.servicios.model.clientes.ClienteBusquedaRequestDTO peticion) {
+
+        String curp = peticion.getCurp();
+        String rfc = peticion.getRfc();
+        String correo = peticion.getCorreo();
+        String numeroCuenta = peticion.getNumeroCuenta();
 
         if ((curp == null || curp.isBlank()) && (rfc == null || rfc.isBlank()) && 
             (correo == null || correo.isBlank()) && (numeroCuenta == null || numeroCuenta.isBlank())) {
