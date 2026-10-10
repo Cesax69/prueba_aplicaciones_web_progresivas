@@ -42,7 +42,9 @@ class GestoPagoServiceImplTest {
         // Arrange
         ProductListResponse mockResponse = new ProductListResponse();
         mockResponse.setStatus("OK");
-        ProductDTO product = new ProductDTO("1", "Producto 1", "Desc", BigDecimal.TEN, "Cat", true);
+        ProductDTO product = new ProductDTO();
+        product.setId("1");
+        product.setName("Producto 1");
         mockResponse.setData(Collections.singletonList(product));
 
         when(gestoPagoClient.getProductList()).thenReturn(mockResponse);
