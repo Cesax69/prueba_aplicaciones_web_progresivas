@@ -55,25 +55,9 @@ public class ClienteController {
         return ResponseEntity.ok(clienteService.obtenerTodosLosClientes());
     }
 
-    @GetMapping("/{curp}")
-    @Operation(summary = "Obtener cliente por CURP")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Cliente encontrado"),
-        @ApiResponse(responseCode = "404", description = "Cliente no encontrado con esa CURP",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
-        @ApiResponse(responseCode = "400", description = "Formato de CURP inválido",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
-    })
-    public ResponseEntity<ClienteResponseDTO> obtenerPorCurp(
-            @PathVariable 
-            @NotBlank(message = "La CURP no puede estar vacía")
-            @Pattern(regexp = "^[A-Z]{4}\\d{6}[HM][A-Z]{5}[A-Z\\d]\\d$", message = "El formato de la CURP es inválido. Solo se aceptan 18 caracteres alfanuméricos en mayúscula") 
-            String curp) {
-        return ResponseEntity.ok(clienteService.obtenerClientePorCurp(curp));
-    }
 
-    @PutMapping("/{curp}")
-    @Operation(summary = "Actualizar cliente", description = "Actualiza los datos de un cliente existente buscando por su CURP")
+    @PutMapping("/actualizar")
+    @Operation(summary = "Actualizar cliente", description = "Actualiza los datos de un cliente existente buscando por su CURP mediante parámetro (query)")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "Cliente actualizado exitosamente"),
         @ApiResponse(responseCode = "400", description = "Datos inválidos o formato incorrecto en el JSON",
@@ -82,7 +66,7 @@ public class ClienteController {
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<ClienteResponseDTO> actualizarCliente(
-            @PathVariable 
+            @RequestParam 
             @NotBlank(message = "La CURP no puede estar vacía")
             @Pattern(regexp = "^[A-Z]{4}\\d{6}[HM][A-Z]{5}[A-Z\\d]\\d$", message = "El formato de la CURP es inválido. Solo se aceptan 18 caracteres alfanuméricos en mayúscula") 
             String curp,
@@ -90,8 +74,8 @@ public class ClienteController {
         return ResponseEntity.ok(clienteService.actualizarCliente(curp, request));
     }
 
-    @DeleteMapping("/{curp}")
-    @Operation(summary = "Desactivar cliente", description = "Desactiva un cliente (baja lógica, no eliminación física) buscándolo por CURP")
+    @DeleteMapping("/desactivar")
+    @Operation(summary = "Desactivar cliente", description = "Desactiva un cliente (baja lógica) buscándolo por CURP mediante parámetro (query)")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "204", description = "Cliente desactivado exitosamente"),
         @ApiResponse(responseCode = "404", description = "Cliente no encontrado",
@@ -100,7 +84,7 @@ public class ClienteController {
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<Void> desactivarCliente(
-            @PathVariable 
+            @RequestParam 
             @NotBlank(message = "La CURP no puede estar vacía")
             @Pattern(regexp = "^[A-Z]{4}\\d{6}[HM][A-Z]{5}[A-Z\\d]\\d$", message = "El formato de la CURP es inválido. Solo se aceptan 18 caracteres alfanuméricos en mayúscula") 
             String curp) {
