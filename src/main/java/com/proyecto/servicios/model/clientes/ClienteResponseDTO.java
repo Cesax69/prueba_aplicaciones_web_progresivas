@@ -8,7 +8,6 @@ import java.time.LocalDateTime;
 
 @Data
 public class ClienteResponseDTO {
-    private Long id;
     private String nombre;
     private String segundoNombre;
     private String apellidoPaterno;
@@ -34,7 +33,6 @@ public class ClienteResponseDTO {
     private LocalDateTime fechaRegistro;
 
     // Domicilio
-    private Long domicilioId;
     private String calle;
     private String numeroExterior;
     private String numeroInterior;

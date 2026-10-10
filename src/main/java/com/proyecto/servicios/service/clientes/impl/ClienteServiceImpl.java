@@ -355,7 +355,6 @@ public class ClienteServiceImpl implements ClienteService {
 
     private ClienteResponseDTO mapToResponse(Cliente cliente) {
         ClienteResponseDTO dto = new ClienteResponseDTO();
-        dto.setId(cliente.getId());
         dto.setNombre(cliente.getNombre());
         dto.setSegundoNombre(cliente.getSegundoNombre());
         dto.setApellidoPaterno(cliente.getApellidoPaterno());
@@ -376,7 +375,6 @@ public class ClienteServiceImpl implements ClienteService {
         dto.setFechaRegistro(cliente.getFechaRegistro());
 
         if (cliente.getDomicilio() != null) {
-            dto.setDomicilioId(cliente.getDomicilio().getId());
             dto.setCalle(cliente.getDomicilio().getCalle());
             dto.setNumeroExterior(cliente.getDomicilio().getNumeroExterior());
             dto.setNumeroInterior(cliente.getDomicilio().getNumeroInterior());
@@ -408,7 +406,6 @@ public class ClienteServiceImpl implements ClienteService {
         }
         
         if (cuenta.getCliente() != null) {
-            dto.setClienteId(cuenta.getCliente().getId());
             dto.setNombreCliente(cuenta.getCliente().getNombre() + " " + cuenta.getCliente().getApellidoPaterno());
         }
         

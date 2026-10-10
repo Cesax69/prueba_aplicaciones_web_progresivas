@@ -14,6 +14,5 @@ public class CuentaResponseDTO {
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime fechaApertura;
 
-    private Long clienteId;
     private String nombreCliente;
 }
