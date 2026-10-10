@@ -134,23 +134,41 @@ public class ClienteController {
             @Pattern(regexp = "^\\d{10}$", message = "El número de cuenta debe tener exactamente 10 dígitos numéricos") 
             String numeroCuenta) {
 
-        int parametrosProporcionados = 0;
-        if (curp != null && !curp.isBlank()) parametrosProporcionados++;
-        if (rfc != null && !rfc.isBlank()) parametrosProporcionados++;
-        if (correo != null && !correo.isBlank()) parametrosProporcionados++;
-        if (numeroCuenta != null && !numeroCuenta.isBlank()) parametrosProporcionados++;
-
-        if (parametrosProporcionados == 0) {
+        if ((curp == null || curp.isBlank()) && (rfc == null || rfc.isBlank()) && 
+            (correo == null || correo.isBlank()) && (numeroCuenta == null || numeroCuenta.isBlank())) {
             throw new com.proyecto.servicios.exception.ValidacionException("Debe proporcionar al menos un criterio de búsqueda (curp, rfc, correo o numeroCuenta)");
         }
-        if (parametrosProporcionados > 1) {
-            throw new com.proyecto.servicios.exception.ValidacionException("Debe proporcionar solo un criterio de búsqueda a la vez");
+
+        ClienteResponseDTO cliente = null;
+
+        // Buscar por el primer criterio disponible
+        if (curp != null && !curp.isBlank()) {
+            cliente = clienteService.obtenerClientePorCurp(curp);
+        } else if (rfc != null && !rfc.isBlank()) {
+            cliente = clienteService.obtenerClientePorRfc(rfc);
+        } else if (correo != null && !correo.isBlank()) {
+            cliente = clienteService.obtenerClientePorCorreo(correo);
+        } else if (numeroCuenta != null && !numeroCuenta.isBlank()) {
+            cliente = clienteService.obtenerClientePorNumeroCuenta(numeroCuenta);
         }
 
-        if (curp != null && !curp.isBlank()) return ResponseEntity.ok(clienteService.obtenerClientePorCurp(curp));
-        if (rfc != null && !rfc.isBlank()) return ResponseEntity.ok(clienteService.obtenerClientePorRfc(rfc));
-        if (correo != null && !correo.isBlank()) return ResponseEntity.ok(clienteService.obtenerClientePorCorreo(correo));
-        return ResponseEntity.ok(clienteService.obtenerClientePorNumeroCuenta(numeroCuenta));
+        // Si se encontraron datos, validar que coincidan con los demás parámetros proporcionados
+        if (cliente != null) {
+            if (curp != null && !curp.isBlank() && !curp.equals(cliente.getCurp())) {
+                throw new com.proyecto.servicios.exception.ClienteNoEncontradoException("Los datos proporcionados no coinciden con un mismo cliente (CURP no coincide)");
+            }
+            if (rfc != null && !rfc.isBlank() && !rfc.equals(cliente.getRfc())) {
+                throw new com.proyecto.servicios.exception.ClienteNoEncontradoException("Los datos proporcionados no coinciden con un mismo cliente (RFC no coincide)");
+            }
+            if (correo != null && !correo.isBlank() && !correo.equals(cliente.getCorreo())) {
+                throw new com.proyecto.servicios.exception.ClienteNoEncontradoException("Los datos proporcionados no coinciden con un mismo cliente (Correo no coincide)");
+            }
+            if (numeroCuenta != null && !numeroCuenta.isBlank() && !numeroCuenta.equals(cliente.getNumeroCuenta())) {
+                throw new com.proyecto.servicios.exception.ClienteNoEncontradoException("Los datos proporcionados no coinciden con un mismo cliente (Número de cuenta no coincide)");
+            }
+        }
+
+        return ResponseEntity.ok(cliente);
     }
 
     @GetMapping("/activos")
