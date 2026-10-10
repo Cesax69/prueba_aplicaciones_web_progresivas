@@ -57,7 +57,7 @@ public class ClienteController {
 
 
     @PutMapping("/actualizar")
-    @Operation(summary = "Actualizar cliente", description = "Actualiza los datos de un cliente existente buscando por su CURP mediante parámetro (query)")
+    @Operation(summary = "Actualizar cliente", description = "Actualiza los datos de un cliente enviando todos sus datos en JSON. La CURP viene incluida en el cuerpo.")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "Cliente actualizado exitosamente"),
         @ApiResponse(responseCode = "400", description = "Datos inválidos o formato incorrecto en el JSON",
@@ -66,29 +66,22 @@ public class ClienteController {
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<ClienteResponseDTO> actualizarCliente(
-            @RequestParam 
-            @NotBlank(message = "La CURP no puede estar vacía")
-            @Pattern(regexp = "^[A-Z]{4}\\d{6}[HM][A-Z]{5}[A-Z\\d]\\d$", message = "El formato de la CURP es inválido. Solo se aceptan 18 caracteres alfanuméricos en mayúscula") 
-            String curp,
             @Valid @RequestBody ClienteRequestDTO request) {
-        return ResponseEntity.ok(clienteService.actualizarCliente(curp, request));
+        return ResponseEntity.ok(clienteService.actualizarCliente(request.getCurp(), request));
     }
 
-    @DeleteMapping("/desactivar")
-    @Operation(summary = "Desactivar cliente", description = "Desactiva un cliente (baja lógica) buscándolo por CURP mediante parámetro (query)")
+    @PostMapping("/desactivar")
+    @Operation(summary = "Desactivar cliente", description = "Desactiva un cliente (baja lógica) recibiendo un JSON con su CURP")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "204", description = "Cliente desactivado exitosamente"),
         @ApiResponse(responseCode = "404", description = "Cliente no encontrado",
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
-        @ApiResponse(responseCode = "400", description = "Formato de CURP inválido",
+        @ApiResponse(responseCode = "400", description = "Formato de CURP inválido en JSON",
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<Void> desactivarCliente(
-            @RequestParam 
-            @NotBlank(message = "La CURP no puede estar vacía")
-            @Pattern(regexp = "^[A-Z]{4}\\d{6}[HM][A-Z]{5}[A-Z\\d]\\d$", message = "El formato de la CURP es inválido. Solo se aceptan 18 caracteres alfanuméricos en mayúscula") 
-            String curp) {
-        clienteService.desactivarCliente(curp);
+            @Valid @RequestBody com.proyecto.servicios.model.clientes.ClienteCurpRequestDTO peticion) {
+        clienteService.desactivarCliente(peticion.getCurp());
         return ResponseEntity.noContent().build();
     }
 
@@ -153,19 +146,16 @@ public class ClienteController {
         return ResponseEntity.ok(clienteService.obtenerClientesActivos());
     }
 
-    @GetMapping("/rango-fechas")
+    @PostMapping("/rango-fechas")
     @Operation(summary = "Obtener clientes por rango de fechas de registro",
-            description = "Filtra clientes por fecha de registro. Formato: yyyy-MM-dd (ejemplo: 2024-01-01)")
+            description = "Filtra clientes enviando un JSON con fecha de inicio y fin. Formato: yyyy-MM-dd")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "Lista obtenida exitosamente"),
-        @ApiResponse(responseCode = "400", description = "Formato de fecha inválido (use yyyy-MM-dd) o parámetro faltante",
+        @ApiResponse(responseCode = "400", description = "Formato de fecha inválido o parámetros faltantes",
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<List<ClienteResponseDTO>> obtenerPorRangoFechas(
-            @RequestParam @NotNull(message = "La fecha de inicio es requerida. Formato: yyyy-MM-dd")
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate inicio,
-            @RequestParam @NotNull(message = "La fecha de fin es requerida. Formato: yyyy-MM-dd")
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fin) {
-        return ResponseEntity.ok(clienteService.obtenerClientesPorRangoFechas(inicio, fin));
+            @Valid @RequestBody com.proyecto.servicios.model.clientes.ClienteRangoFechasRequestDTO peticion) {
+        return ResponseEntity.ok(clienteService.obtenerClientesPorRangoFechas(peticion.getInicio(), peticion.getFin()));
     }
 }
