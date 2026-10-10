@@ -199,6 +199,9 @@ public class ClienteServiceImpl implements ClienteService {
     @Override
     @Transactional(readOnly = true)
     public List<ClienteResponseDTO> obtenerClientesPorRangoFechas(LocalDate inicio, LocalDate fin) {
+        if (inicio.isAfter(fin)) {
+            throw new ValidacionException("La fecha de inicio no puede ser posterior a la fecha de fin");
+        }
         // Convertir LocalDate a LocalDateTime: inicio = 00:00:00, fin = 23:59:59
         LocalDateTime inicioDT = inicio.atStartOfDay();
         LocalDateTime finDT = fin.atTime(23, 59, 59);
@@ -415,9 +418,10 @@ public class ClienteServiceImpl implements ClienteService {
     private LocalDate parseFecha(String fechaStr) {
         if (fechaStr == null) return null;
         try {
-            return LocalDate.parse(fechaStr);
-        } catch (Exception e) {
-            throw new ValidacionException("Formato de fecha inválido. Use yyyy-MM-dd");
+            LocalDate fecha = LocalDate.parse(fechaStr);
+            return fecha;
+        } catch (java.time.format.DateTimeParseException e) {
+            throw new ValidacionException("La fecha '" + fechaStr + "' no es válida. Use el formato yyyy-MM-dd con valores reales (ej: 2024-02-29 pero no 2024-02-30)");
         }
     }
 }
