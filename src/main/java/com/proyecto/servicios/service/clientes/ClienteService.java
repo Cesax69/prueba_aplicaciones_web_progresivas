@@ -4,7 +4,7 @@ import com.proyecto.servicios.model.clientes.ClienteRequestDTO;
 import com.proyecto.servicios.model.clientes.ClienteResponseDTO;
 import com.proyecto.servicios.model.clientes.CuentaResponseDTO;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
 
 public interface ClienteService {
@@ -30,7 +30,7 @@ public interface ClienteService {
     // Consultas específicas
     List<ClienteResponseDTO> obtenerClientesActivos();
 
-    List<ClienteResponseDTO> obtenerClientesPorRangoFechas(LocalDateTime inicio, LocalDateTime fin);
+    List<ClienteResponseDTO> obtenerClientesPorRangoFechas(LocalDate inicio, LocalDate fin);
 
     CuentaResponseDTO obtenerCuentaPorNumero(String numeroCuenta);
 
