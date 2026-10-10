@@ -125,9 +125,9 @@ public class ClienteServiceImpl implements ClienteService {
 
     @Override
     @Transactional
-    public ClienteResponseDTO actualizarCliente(Long id, ClienteRequestDTO request) {
-        Cliente cliente = clienteRepository.findById(id)
-                .orElseThrow(() -> new ClienteNoEncontradoException("Cliente no encontrado con ID: " + id));
+    public ClienteResponseDTO actualizarCliente(String curp, ClienteRequestDTO request) {
+        Cliente cliente = clienteRepository.findByCurp(curp)
+                .orElseThrow(() -> new ClienteNoEncontradoException("Cliente no encontrado con CURP: " + curp));
 
         // Actualizar datos permitidos (NO CURP, NO RFC)
         cliente.setNombre(request.getNombre());
@@ -170,9 +170,9 @@ public class ClienteServiceImpl implements ClienteService {
 
     @Override
     @Transactional
-    public void desactivarCliente(Long id) {
-        Cliente cliente = clienteRepository.findById(id)
-                .orElseThrow(() -> new ClienteNoEncontradoException("Cliente no encontrado con ID: " + id));
+    public void desactivarCliente(String curp) {
+        Cliente cliente = clienteRepository.findByCurp(curp)
+                .orElseThrow(() -> new ClienteNoEncontradoException("Cliente no encontrado con CURP: " + curp));
         
         cliente.setActivo(false);
         
@@ -185,7 +185,7 @@ public class ClienteServiceImpl implements ClienteService {
         }
         
         clienteRepository.save(cliente);
-        log.info("Cliente {} desactivado correctamente", id);
+        log.info("Cliente {} desactivado correctamente", curp);
     }
 
     @Override

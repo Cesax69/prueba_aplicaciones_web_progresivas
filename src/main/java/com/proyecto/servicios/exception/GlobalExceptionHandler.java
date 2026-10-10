@@ -75,13 +75,29 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, String>> handleValidationErrors(MethodArgumentNotValidException ex) {
-        Map<String, String> errores = new HashMap<>();
-        for (FieldError error : ex.getBindingResult().getFieldErrors()) {
-            errores.put(error.getField(), error.getDefaultMessage());
-        }
-        log.error("Error de validación de campos: {}", errores);
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errores);
+    public ResponseEntity<ErrorResponse> handleValidationErrors(MethodArgumentNotValidException ex) {
+        StringBuilder mensajeBuilder = new StringBuilder("Errores de validación: ");
+        ex.getBindingResult().getFieldErrors().forEach(error -> 
+            mensajeBuilder.append("[").append(error.getField()).append(": ").append(error.getDefaultMessage()).append("] ")
+        );
+        String mensajeFinal = mensajeBuilder.toString().trim();
+        log.error("Error de validación de campos: {}", mensajeFinal);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse(400, mensajeFinal, LocalDateTime.now()));
+    }
+
+    @ExceptionHandler(jakarta.validation.ConstraintViolationException.class)
+    public ResponseEntity<ErrorResponse> handleConstraintViolation(jakarta.validation.ConstraintViolationException ex) {
+        StringBuilder mensajeBuilder = new StringBuilder("Errores de validación: ");
+        ex.getConstraintViolations().forEach(violation -> {
+            String path = violation.getPropertyPath().toString();
+            String campo = path.contains(".") ? path.substring(path.lastIndexOf('.') + 1) : path;
+            mensajeBuilder.append("[").append(campo).append(": ").append(violation.getMessage()).append("] ");
+        });
+        String mensajeFinal = mensajeBuilder.toString().trim();
+        log.error("Error de validación de parámetros: {}", mensajeFinal);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse(400, mensajeFinal, LocalDateTime.now()));
     }
 
     @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)

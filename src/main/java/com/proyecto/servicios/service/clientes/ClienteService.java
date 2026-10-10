@@ -23,9 +23,9 @@ public interface ClienteService {
 
     ClienteResponseDTO obtenerClientePorNumeroCuenta(String numeroCuenta);
 
-    ClienteResponseDTO actualizarCliente(Long id, ClienteRequestDTO request);
+    ClienteResponseDTO actualizarCliente(String curp, ClienteRequestDTO request);
 
-    void desactivarCliente(Long id);
+    void desactivarCliente(String curp);
 
     // Consultas específicas
     List<ClienteResponseDTO> obtenerClientesActivos();
