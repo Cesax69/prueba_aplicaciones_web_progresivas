@@ -17,7 +17,7 @@ public class ClienteRequestDTO {
     private String nombre;
 
     @Pattern(regexp = "^[A-Za-zÁÉÍÓÚáéíóúÑñ\\s]*$", message = "El segundo nombre no debe contener números ni caracteres especiales (@, #, etc.)")
-    @Size(min = 3, max = 50, message = "El segundo nombre debe tener entre 3 y 50 caracteres si se proporciona")
+    @Size(max = 50, message = "El segundo nombre no debe exceder 50 caracteres")
     private String segundoNombre;
 
     @NotBlank(message = "El apellido paterno es obligatorio")
@@ -70,7 +70,7 @@ public class ClienteRequestDTO {
     @Pattern(regexp = "^\\d{10}$", message = "El teléfono móvil debe contener exactamente 10 dígitos. No se aceptan letras ni caracteres especiales")
     private String telefonoMovil;
 
-    @Pattern(regexp = "^\\d{10}$", message = "El teléfono alternativo debe contener exactamente 10 dígitos. No se aceptan letras ni caracteres especiales")
+    @Pattern(regexp = "^(\\d{10})?$", message = "El teléfono alternativo debe contener exactamente 10 dígitos. No se aceptan letras ni caracteres especiales")
     private String telefonoAlternativo;
 
     // ───────────────────── DATOS LABORALES ─────────────────────

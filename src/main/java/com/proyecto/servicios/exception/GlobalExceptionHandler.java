@@ -7,12 +7,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.Map;
 
 @RestControllerAdvice
 @Slf4j
@@ -100,6 +100,23 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse(400, mensajeFinal, LocalDateTime.now()));
     }
 
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ErrorResponse> handleMissingParam(MissingServletRequestParameterException ex) {
+        String mensaje = "El parámetro '" + ex.getParameterName() + "' es requerido y no fue proporcionado.";
+        log.error("Parámetro requerido faltante: {}", ex.getParameterName());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse(400, mensaje, LocalDateTime.now()));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        String tipoEsperado = ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "desconocido";
+        String mensaje = "El parámetro '" + ex.getName() + "' tiene un formato inválido. Se esperaba un valor de tipo: " + tipoEsperado + ".";
+        log.error("Error de tipo en parámetro: {}", ex.getName());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse(400, mensaje, LocalDateTime.now()));
+    }
+
     @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(org.springframework.http.converter.HttpMessageNotReadableException ex) {
         log.error("Error de formato en JSON", ex);
@@ -117,9 +134,8 @@ public class GlobalExceptionHandler {
             String tipoCampo = mismatch.getTargetType() != null ? mismatch.getTargetType().getSimpleName() : "desconocido";
 
             if (campo != null) {
-                if (tipoCampo.equals("BigDecimal") || tipoCampo.equals("Double") || tipoCampo.equals("Float")
-                        || tipoCampo.equals("Long") || tipoCampo.equals("Integer")) {
-                    mensajeEspecifico = "El campo '" + campo + "' debe ser un número sin comillas (ej: " + campo + ": 1234.56). No envíe el valor entre comillas.";
+                if (tipoCampo.equals("BigDecimal") || tipoCampo.equals("Double") || tipoCampo.equals("Float")) {
+                    mensajeEspecifico = "El campo '" + campo + "' debe ser un número decimal sin comillas (ej: " + campo + ": 1234.56). No envíe el valor entre comillas.";
                 } else if (tipoCampo.equals("Long") || tipoCampo.equals("Integer")) {
                     mensajeEspecifico = "El campo '" + campo + "' debe ser un número entero sin comillas (ej: " + campo + ": 15). No envíe el valor entre comillas.";
                 } else {
