@@ -17,4 +17,12 @@ public class ClienteBusquedaRequestDTO {
 
     @Pattern(regexp = "^$|^\\d{10}$", message = "El número de cuenta debe tener exactamente 10 dígitos numéricos")
     private String numeroCuenta;
+
+    private Long id;
+
+    private String nombre;
+
+    private String apellidoPaterno;
+
+    private Boolean activo;
 }

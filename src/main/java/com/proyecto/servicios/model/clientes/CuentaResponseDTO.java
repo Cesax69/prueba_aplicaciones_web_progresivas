@@ -1,12 +1,15 @@
 package com.proyecto.servicios.model.clientes;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.proyecto.servicios.model.GenericResponse;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
-public class CuentaResponseDTO {
+@EqualsAndHashCode(callSuper = false)
+public class CuentaResponseDTO extends GenericResponse {
     private String numeroCuenta;
     private String estatus;
     private BigDecimal saldo;

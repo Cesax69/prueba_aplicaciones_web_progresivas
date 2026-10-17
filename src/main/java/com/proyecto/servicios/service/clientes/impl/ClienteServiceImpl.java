@@ -4,10 +4,14 @@ import com.proyecto.servicios.entity.clientes.*;
 import com.proyecto.servicios.enums.EstatusClienteEnum;
 import com.proyecto.servicios.enums.EstatusCuentaEnum;
 import com.proyecto.servicios.exception.*;
+import com.proyecto.servicios.model.GenericResponse;
+import com.proyecto.servicios.model.clientes.ClienteBusquedaRequestDTO;
+import com.proyecto.servicios.model.clientes.ClienteIdRequestDTO;
 import com.proyecto.servicios.model.clientes.ClienteRequestDTO;
 import com.proyecto.servicios.model.clientes.ClienteResponseDTO;
 import com.proyecto.servicios.model.clientes.CuentaResponseDTO;
 import com.proyecto.servicios.repositorys.clientes.*;
+import com.proyecto.servicios.repositorys.clientes.specification.ClienteSpecification;
 import com.proyecto.servicios.service.clientes.ClienteService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -160,12 +164,50 @@ public class ClienteServiceImpl implements ClienteService {
         cliente.setTelefonoAlternativo(request.getTelefonoAlternativo());
 
         // Actualizar Domicilio
+        if (request.getEstado() != null) {
+            boolean estadoValido = catalogoRepository.existsByTipoAndDescripcionIgnoreCaseAndActivoTrue("ESTADO", request.getEstado().trim())
+                    || catalogoRepository.existsByTipoAndClaveIgnoreCaseAndActivoTrue("ESTADO", request.getEstado().trim());
+            if (!estadoValido) {
+                throw new ValidacionException("El estado '" + request.getEstado() + "' no es válido o no existe en el catálogo oficial de entidades federativas.");
+            }
+        }
         if (cliente.getDomicilio() != null) {
             mapearDomicilio(request, cliente.getDomicilio());
         }
 
         cliente = clienteRepository.save(cliente);
-        return mapToResponse(cliente);
+        ClienteResponseDTO response = mapToResponse(cliente);
+        response.setCodigo(0);
+        response.setMensaje("Datos actualizados correctamente");
+        return response;
+    }
+
+    @Override
+    @Transactional
+    public ClienteResponseDTO actualizarCompleto(ClienteRequestDTO request) {
+        Cliente cliente;
+        if (request.getId() != null) {
+            cliente = clienteRepository.findById(request.getId())
+                    .orElseThrow(() -> new ClienteNoEncontradoException("Cliente no encontrado con ID: " + request.getId()));
+        } else if (request.getCurp() != null && !request.getCurp().isBlank()) {
+            cliente = clienteRepository.findByCurp(request.getCurp())
+                    .orElseThrow(() -> new ClienteNoEncontradoException("Cliente no encontrado con CURP: " + request.getCurp()));
+        } else if (request.getRfc() != null && !request.getRfc().isBlank()) {
+            cliente = clienteRepository.findByRfc(request.getRfc())
+                    .orElseThrow(() -> new ClienteNoEncontradoException("Cliente no encontrado con RFC: " + request.getRfc()));
+        } else {
+            throw new ValidacionException("Debe proporcionar el ID, CURP o RFC del cliente para actualizar");
+        }
+        return actualizarCliente(cliente.getCurp(), request);
+    }
+
+    @Override
+    @Transactional
+    public com.proyecto.servicios.model.clientes.ClienteResponse actualizarCompleto(com.proyecto.servicios.model.clientes.ClienteRegistroRequest request) {
+        ClienteResponseDTO dto = actualizarCompleto((ClienteRequestDTO) request);
+        com.proyecto.servicios.model.clientes.ClienteResponse response = new com.proyecto.servicios.model.clientes.ClienteResponse();
+        org.springframework.beans.BeanUtils.copyProperties(dto, response);
+        return response;
     }
 
     @Override
@@ -186,6 +228,100 @@ public class ClienteServiceImpl implements ClienteService {
         
         clienteRepository.save(cliente);
         log.info("Cliente {} desactivado correctamente", curp);
+    }
+
+    @Override
+    @Transactional
+    public GenericResponse desactivarCliente(ClienteIdRequestDTO request) {
+        if (request.getId() != null) {
+            Cliente cliente = clienteRepository.findById(request.getId())
+                    .orElseThrow(() -> new ClienteNoEncontradoException("No existe el cliente con ID: " + request.getId()));
+            desactivarCliente(cliente.getCurp());
+        } else if (request.getCurp() != null && !request.getCurp().isBlank()) {
+            desactivarCliente(request.getCurp());
+        } else {
+            throw new ValidacionException("Debe proporcionar el ID o la CURP del cliente a desactivar");
+        }
+        return new GenericResponse(0, "Cliente desactivado exitosamente");
+    }
+
+    @Override
+    @Transactional
+    public ClienteResponseDTO reactivarCliente(Long id) {
+        Cliente cliente = clienteRepository.findById(id)
+                .orElseThrow(() -> new ClienteNoEncontradoException("No existe el cliente con ID: " + id));
+
+        if (Boolean.TRUE.equals(cliente.getActivo())) {
+            throw new ValidacionException("El cliente con ID " + id + " ya se encuentra activo");
+        }
+
+        cliente.setActivo(true);
+        if (cliente.getCuenta() != null) {
+            cliente.getCuenta().setEstatus(EstatusCuentaEnum.ACTIVA.getCodigo());
+        }
+        if (cliente.getLoginCliente() != null) {
+            cliente.getLoginCliente().setActivo(true);
+        }
+
+        cliente = clienteRepository.save(cliente);
+        log.info("Cliente con ID {} reactivado exitosamente", id);
+        ClienteResponseDTO response = mapToResponse(cliente);
+        response.setCodigo(0);
+        response.setMensaje("Cliente reactivado correctamente");
+        return response;
+    }
+
+    @Override
+    @Transactional
+    public ClienteResponseDTO reactivarCliente(ClienteIdRequestDTO request) {
+        if (request.getId() != null) {
+            return reactivarCliente(request.getId());
+        }
+        if (request.getCurp() != null && !request.getCurp().isBlank()) {
+            Cliente cliente = clienteRepository.findByCurp(request.getCurp())
+                    .orElseThrow(() -> new ClienteNoEncontradoException("Cliente no encontrado con CURP: " + request.getCurp()));
+            return reactivarCliente(cliente.getId());
+        }
+        throw new ValidacionException("Debe proporcionar el ID o la CURP del cliente a reactivar");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ClienteResponseDTO buscarClienteDinamico(ClienteBusquedaRequestDTO peticion) {
+        List<ClienteResponseDTO> resultados = buscarClientesDinamico(peticion);
+        return resultados.get(0);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ClienteResponseDTO> buscarClientesDinamico(ClienteBusquedaRequestDTO peticion) {
+        boolean tieneCriterio = peticion.getId() != null
+                || (peticion.getCurp() != null && !peticion.getCurp().isBlank())
+                || (peticion.getRfc() != null && !peticion.getRfc().isBlank())
+                || (peticion.getCorreo() != null && !peticion.getCorreo().isBlank())
+                || (peticion.getNumeroCuenta() != null && !peticion.getNumeroCuenta().isBlank())
+                || (peticion.getNombre() != null && !peticion.getNombre().isBlank())
+                || (peticion.getApellidoPaterno() != null && !peticion.getApellidoPaterno().isBlank())
+                || peticion.getActivo() != null;
+
+        if (!tieneCriterio) {
+            throw new ValidacionException("Debe proporcionar al menos un criterio de búsqueda (curp, rfc, correo, numeroCuenta, nombre, etc.)");
+        }
+
+        List<Cliente> clientes = clienteRepository.findAll(ClienteSpecification.conFiltros(peticion));
+
+        if (clientes.isEmpty()) {
+            throw new ClienteNoEncontradoException("No se encontraron clientes con los criterios de búsqueda proporcionados");
+        }
+
+        return clientes.stream()
+                .map(c -> {
+                    ClienteResponseDTO dto = mapToResponse(c);
+                    dto.setCodigo(0);
+                    dto.setMensaje("Consulta exitosa");
+                    return dto;
+                })
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -252,6 +388,13 @@ public class ClienteServiceImpl implements ClienteService {
         }
         if (clienteRepository.existsByCorreo(request.getCorreo())) {
             throw new CorreoDuplicadoException("El correo electrónico ya se encuentra registrado");
+        }
+
+        // Validar que el Estado exista en el catálogo oficial de entidades federativas
+        boolean estadoValido = catalogoRepository.existsByTipoAndDescripcionIgnoreCaseAndActivoTrue("ESTADO", request.getEstado().trim())
+                || catalogoRepository.existsByTipoAndClaveIgnoreCaseAndActivoTrue("ESTADO", request.getEstado().trim());
+        if (!estadoValido) {
+            throw new ValidacionException("El estado '" + request.getEstado() + "' no es válido o no existe en el catálogo oficial de entidades federativas.");
         }
     }
 
@@ -393,6 +536,10 @@ public class ClienteServiceImpl implements ClienteService {
             dto.setEstatusCuenta(cliente.getCuenta().getEstatus());
         }
 
+        dto.setId(cliente.getId());
+        dto.setCodigo(0);
+        dto.setMensaje("Operación exitosa");
+
         return dto;
     }
 
@@ -401,6 +548,8 @@ public class ClienteServiceImpl implements ClienteService {
         dto.setNumeroCuenta(cuenta.getNumeroCuenta());
         dto.setEstatus(cuenta.getEstatus());
         dto.setFechaApertura(cuenta.getFechaApertura());
+        dto.setCodigo(0);
+        dto.setMensaje("Consulta exitosa");
         
         if (cuenta.getSaldo() != null) {
             dto.setSaldo(cuenta.getSaldo().getSaldo());

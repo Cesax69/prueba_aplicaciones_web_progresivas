@@ -4,12 +4,13 @@ import jakarta.validation.constraints.*;
 import jakarta.validation.constraints.Min;
 import lombok.Data;
 import java.math.BigDecimal;
-import java.time.LocalDate;
 
 @Data
 public class ClienteRequestDTO {
 
     // ───────────────────── DATOS PERSONALES ─────────────────────
+
+    private Long id;
 
     @NotBlank(message = "El nombre es obligatorio")
     @Pattern(regexp = "^[A-Za-zÁÉÍÓÚáéíóúÑñ\\s]+$", message = "El nombre no debe contener números ni caracteres especiales (@, #, etc.)")
@@ -122,7 +123,7 @@ public class ClienteRequestDTO {
     private String estado;
 
     @NotBlank(message = "El código postal es obligatorio")
-    @Pattern(regexp = "^\\d{5}$", message = "El código postal debe contener exactamente 5 dígitos. No se aceptan letras ni caracteres especiales")
+    @Pattern(regexp = "^(0[1-9]|[1-9][0-9])[0-9]{3}$", message = "El código postal debe contener 5 dígitos numéricos válidos (rango oficial 01000 a 99999). No se aceptan '00000', letras ni caracteres especiales")
     private String codigoPostal;
 
     @NotBlank(message = "El país es obligatorio")

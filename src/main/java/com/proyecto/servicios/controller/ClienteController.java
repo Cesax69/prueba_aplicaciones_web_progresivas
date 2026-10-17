@@ -10,30 +10,25 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.Valid;
 import org.springframework.validation.annotation.Validated;
-import lombok.RequiredArgsConstructor;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/clientes")
-@RequiredArgsConstructor
 @Validated
 @Tag(name = "Clientes", description = "Operaciones de gestión de clientes")
 public class ClienteController {
 
     private final ClienteService clienteService;
+
+    public ClienteController(ClienteService clienteService) {
+        this.clienteService = clienteService;
+    }
 
     @PostMapping
     @Operation(summary = "Registrar cliente", description = "Crea un nuevo cliente en el sistema con cuenta bancaria inicial de $100.00")
@@ -57,7 +52,7 @@ public class ClienteController {
 
 
     @PutMapping("/actualizar")
-    @Operation(summary = "Actualizar cliente", description = "Actualiza los datos de un cliente enviando todos sus datos en JSON. La CURP viene incluida en el cuerpo.")
+    @Operation(summary = "Actualizar cliente", description = "Actualiza los datos de un cliente enviando todos sus datos en JSON. La CURP o ID viene incluida en el cuerpo.")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "Cliente actualizado exitosamente"),
         @ApiResponse(responseCode = "400", description = "Datos inválidos o formato incorrecto en el JSON",
@@ -67,76 +62,49 @@ public class ClienteController {
     })
     public ResponseEntity<ClienteResponseDTO> actualizarCliente(
             @Valid @RequestBody ClienteRequestDTO request) {
-        return ResponseEntity.ok(clienteService.actualizarCliente(request.getCurp(), request));
+        return ResponseEntity.ok(clienteService.actualizarCompleto(request));
     }
 
     @PostMapping("/desactivar")
-    @Operation(summary = "Desactivar cliente", description = "Desactiva un cliente (baja lógica) recibiendo un JSON con su CURP")
+    @Operation(summary = "Desactivar cliente", description = "Desactiva un cliente (baja lógica) recibiendo un JSON con su ID o CURP")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "204", description = "Cliente desactivado exitosamente"),
+        @ApiResponse(responseCode = "200", description = "Cliente desactivado exitosamente"),
         @ApiResponse(responseCode = "404", description = "Cliente no encontrado",
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
-        @ApiResponse(responseCode = "400", description = "Formato de CURP inválido en JSON",
+        @ApiResponse(responseCode = "400", description = "Formato de CURP o ID inválido",
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
-    public ResponseEntity<Void> desactivarCliente(
-            @Valid @RequestBody com.proyecto.servicios.model.clientes.ClienteCurpRequestDTO peticion) {
-        clienteService.desactivarCliente(peticion.getCurp());
-        return ResponseEntity.noContent().build();
+    public ResponseEntity<com.proyecto.servicios.model.GenericResponse> desactivarCliente(
+            @Valid @RequestBody com.proyecto.servicios.model.clientes.ClienteIdRequestDTO peticion) {
+        return ResponseEntity.ok(clienteService.desactivarCliente(peticion));
+    }
+
+    @PostMapping("/reactivar")
+    @Operation(summary = "Reactivar cliente", description = "Reactiva un cliente previamente desactivado recibiendo un JSON con su ID o CURP")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Cliente reactivado exitosamente"),
+        @ApiResponse(responseCode = "404", description = "Cliente no encontrado",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+        @ApiResponse(responseCode = "400", description = "El cliente ya se encuentra activo o parámetros inválidos",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    public ResponseEntity<ClienteResponseDTO> reactivarCliente(
+            @Valid @RequestBody com.proyecto.servicios.model.clientes.ClienteIdRequestDTO peticion) {
+        return ResponseEntity.ok(clienteService.reactivarCliente(peticion));
     }
 
     @PostMapping("/buscar")
-    @Operation(summary = "Buscar cliente dinámicamente", description = "Permite buscar un cliente enviando un JSON con curp, rfc, correo o numeroCuenta")
+    @Operation(summary = "Buscar cliente dinámicamente", description = "Permite buscar un cliente combinando filtros: curp, rfc, correo, numeroCuenta, nombre, activo")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "Cliente encontrado"),
-        @ApiResponse(responseCode = "404", description = "No existe un cliente con el dato proporcionado",
+        @ApiResponse(responseCode = "404", description = "No existe un cliente con los datos proporcionados",
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
-        @ApiResponse(responseCode = "400", description = "Formato de búsqueda inválido o más de un parámetro proporcionado",
+        @ApiResponse(responseCode = "400", description = "Filtros inválidos o sin criterios",
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<ClienteResponseDTO> buscarCliente(
             @Valid @RequestBody com.proyecto.servicios.model.clientes.ClienteBusquedaRequestDTO peticion) {
-
-        String curp = peticion.getCurp();
-        String rfc = peticion.getRfc();
-        String correo = peticion.getCorreo();
-        String numeroCuenta = peticion.getNumeroCuenta();
-
-        if ((curp == null || curp.isBlank()) && (rfc == null || rfc.isBlank()) && 
-            (correo == null || correo.isBlank()) && (numeroCuenta == null || numeroCuenta.isBlank())) {
-            throw new com.proyecto.servicios.exception.ValidacionException("Debe proporcionar al menos un criterio de búsqueda (curp, rfc, correo o numeroCuenta)");
-        }
-
-        ClienteResponseDTO cliente = null;
-
-        // Buscar por el primer criterio disponible
-        if (curp != null && !curp.isBlank()) {
-            cliente = clienteService.obtenerClientePorCurp(curp);
-        } else if (rfc != null && !rfc.isBlank()) {
-            cliente = clienteService.obtenerClientePorRfc(rfc);
-        } else if (correo != null && !correo.isBlank()) {
-            cliente = clienteService.obtenerClientePorCorreo(correo);
-        } else if (numeroCuenta != null && !numeroCuenta.isBlank()) {
-            cliente = clienteService.obtenerClientePorNumeroCuenta(numeroCuenta);
-        }
-
-        // Si se encontraron datos, validar que coincidan con los demás parámetros proporcionados
-        if (cliente != null) {
-            if (curp != null && !curp.isBlank() && !curp.equals(cliente.getCurp())) {
-                throw new com.proyecto.servicios.exception.ClienteNoEncontradoException("Los datos proporcionados no coinciden con un mismo cliente (CURP no coincide)");
-            }
-            if (rfc != null && !rfc.isBlank() && !rfc.equals(cliente.getRfc())) {
-                throw new com.proyecto.servicios.exception.ClienteNoEncontradoException("Los datos proporcionados no coinciden con un mismo cliente (RFC no coincide)");
-            }
-            if (correo != null && !correo.isBlank() && !correo.equals(cliente.getCorreo())) {
-                throw new com.proyecto.servicios.exception.ClienteNoEncontradoException("Los datos proporcionados no coinciden con un mismo cliente (Correo no coincide)");
-            }
-            if (numeroCuenta != null && !numeroCuenta.isBlank() && !numeroCuenta.equals(cliente.getNumeroCuenta())) {
-                throw new com.proyecto.servicios.exception.ClienteNoEncontradoException("Los datos proporcionados no coinciden con un mismo cliente (Número de cuenta no coincide)");
-            }
-        }
-
-        return ResponseEntity.ok(cliente);
+        return ResponseEntity.ok(clienteService.buscarClienteDinamico(peticion));
     }
 
     @GetMapping("/activos")

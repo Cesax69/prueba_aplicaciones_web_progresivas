@@ -1,0 +1,40 @@
+-- ============================================================
+-- V6: Catálogo de Entidades Federativas de México (32 Estados)
+-- ============================================================
+INSERT INTO catalogos (tipo, clave, descripcion, orden) VALUES
+    ('ESTADO', 'AGU', 'Aguascalientes', 1),
+    ('ESTADO', 'BCN', 'Baja California', 2),
+    ('ESTADO', 'BCS', 'Baja California Sur', 3),
+    ('ESTADO', 'CAM', 'Campeche', 4),
+    ('ESTADO', 'CHP', 'Chiapas', 5),
+    ('ESTADO', 'CHH', 'Chihuahua', 6),
+    ('ESTADO', 'CDMX', 'Ciudad de México', 7),
+    ('ESTADO', 'COA', 'Coahuila', 8),
+    ('ESTADO', 'COL', 'Colima', 9),
+    ('ESTADO', 'DUR', 'Durango', 10),
+    ('ESTADO', 'MEX', 'Estado de México', 11),
+    ('ESTADO', 'GTO', 'Guanajuato', 12),
+    ('ESTADO', 'GRO', 'Guerrero', 13),
+    ('ESTADO', 'HID', 'Hidalgo', 14),
+    ('ESTADO', 'JAL', 'Jalisco', 15),
+    ('ESTADO', 'MIC', 'Michoacán', 16),
+    ('ESTADO', 'MOR', 'Morelos', 17),
+    ('ESTADO', 'NAY', 'Nayarit', 18),
+    ('ESTADO', 'NLE', 'Nuevo León', 19),
+    ('ESTADO', 'OAX', 'Oaxaca', 20),
+    ('ESTADO', 'PUE', 'Puebla', 21),
+    ('ESTADO', 'QUE', 'Querétaro', 22),
+    ('ESTADO', 'ROO', 'Quintana Roo', 23),
+    ('ESTADO', 'SLP', 'San Luis Potosí', 24),
+    ('ESTADO', 'SIN', 'Sinaloa', 25),
+    ('ESTADO', 'SON', 'Sonora', 26),
+    ('ESTADO', 'TAB', 'Tabasco', 27),
+    ('ESTADO', 'TAM', 'Tamaulipas', 28),
+    ('ESTADO', 'TLA', 'Tlaxcala', 29),
+    ('ESTADO', 'VER', 'Veracruz', 30),
+    ('ESTADO', 'YUC', 'Yucatán', 31),
+    ('ESTADO', 'ZAC', 'Zacatecas', 32)
+ON CONFLICT (tipo, clave) DO UPDATE SET
+    descripcion = EXCLUDED.descripcion,
+    orden = EXCLUDED.orden,
+    activo = TRUE;

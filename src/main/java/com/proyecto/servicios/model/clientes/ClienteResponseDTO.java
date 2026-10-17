@@ -1,13 +1,17 @@
 package com.proyecto.servicios.model.clientes;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.proyecto.servicios.model.GenericResponse;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Data
-public class ClienteResponseDTO {
+@EqualsAndHashCode(callSuper = false)
+public class ClienteResponseDTO extends GenericResponse {
+    private Long id;
     private String nombre;
     private String segundoNombre;
     private String apellidoPaterno;

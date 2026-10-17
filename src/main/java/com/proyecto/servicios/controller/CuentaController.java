@@ -1,36 +1,44 @@
 package com.proyecto.servicios.controller;
 
+import com.proyecto.servicios.model.clientes.CuentaConsultaRequestDTO;
 import com.proyecto.servicios.model.clientes.CuentaResponseDTO;
 import com.proyecto.servicios.service.clientes.ClienteService;
-import lombok.RequiredArgsConstructor;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/cuentas")
-@RequiredArgsConstructor
+@Tag(name = "Cuentas", description = "Operaciones de consulta de cuentas bancarias")
 public class CuentaController {
 
     private final ClienteService clienteService;
 
-    @GetMapping("/{numeroCuenta}")
-    public ResponseEntity<CuentaResponseDTO> obtenerCuenta(@PathVariable String numeroCuenta) {
-        return ResponseEntity.ok(clienteService.obtenerCuentaPorNumero(numeroCuenta));
+    public CuentaController(ClienteService clienteService) {
+        this.clienteService = clienteService;
+    }
+
+    @PostMapping("/consultar")
+    @Operation(summary = "Obtener cuenta por número", description = "Consulta los detalles de una cuenta bancaria mediante JSON con @RequestBody")
+    public ResponseEntity<CuentaResponseDTO> obtenerCuenta(@Valid @RequestBody CuentaConsultaRequestDTO request) {
+        return ResponseEntity.ok(clienteService.obtenerCuentaPorNumero(request.getNumeroCuenta()));
     }
 
     @GetMapping("/activas")
+    @Operation(summary = "Obtener cuentas activas", description = "Devuelve el listado de todas las cuentas bancarias con estatus activo")
     public ResponseEntity<List<CuentaResponseDTO>> obtenerCuentasActivas() {
         return ResponseEntity.ok(clienteService.obtenerCuentasActivas());
     }
 
-    @GetMapping("/{numeroCuenta}/saldo")
-    public ResponseEntity<String> consultarSaldo(@PathVariable String numeroCuenta) {
-        CuentaResponseDTO cuenta = clienteService.obtenerCuentaPorNumero(numeroCuenta);
-        return ResponseEntity.ok("El saldo disponible de la cuenta " + numeroCuenta + " es: $" + cuenta.getSaldo());
+    @PostMapping("/saldo")
+    @Operation(summary = "Consultar saldo", description = "Consulta el saldo disponible de una cuenta bancaria mediante JSON con @RequestBody")
+    public ResponseEntity<CuentaResponseDTO> consultarSaldo(@Valid @RequestBody CuentaConsultaRequestDTO request) {
+        CuentaResponseDTO cuenta = clienteService.obtenerCuentaPorNumero(request.getNumeroCuenta());
+        cuenta.setMensaje("El saldo disponible de la cuenta " + request.getNumeroCuenta() + " es: $" + cuenta.getSaldo());
+        return ResponseEntity.ok(cuenta);
     }
 }

@@ -25,7 +25,21 @@ public interface ClienteService {
 
     ClienteResponseDTO actualizarCliente(String curp, ClienteRequestDTO request);
 
+    ClienteResponseDTO actualizarCompleto(ClienteRequestDTO request);
+
+    com.proyecto.servicios.model.clientes.ClienteResponse actualizarCompleto(com.proyecto.servicios.model.clientes.ClienteRegistroRequest request);
+
     void desactivarCliente(String curp);
+
+    com.proyecto.servicios.model.GenericResponse desactivarCliente(com.proyecto.servicios.model.clientes.ClienteIdRequestDTO request);
+
+    ClienteResponseDTO reactivarCliente(Long id);
+
+    ClienteResponseDTO reactivarCliente(com.proyecto.servicios.model.clientes.ClienteIdRequestDTO request);
+
+    ClienteResponseDTO buscarClienteDinamico(com.proyecto.servicios.model.clientes.ClienteBusquedaRequestDTO peticion);
+
+    List<ClienteResponseDTO> buscarClientesDinamico(com.proyecto.servicios.model.clientes.ClienteBusquedaRequestDTO peticion);
 
     // Consultas específicas
     List<ClienteResponseDTO> obtenerClientesActivos();

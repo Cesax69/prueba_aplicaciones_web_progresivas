@@ -11,4 +11,8 @@ public interface CatalogoRepository extends JpaRepository<Catalogo, Long> {
 
     /** Obtiene catálogos por tipo, ordenados de menor a mayor según el campo orden */
     List<Catalogo> findByTipoAndActivoTrueOrderByOrdenAsc(String tipo);
+
+    boolean existsByTipoAndDescripcionIgnoreCaseAndActivoTrue(String tipo, String descripcion);
+
+    boolean existsByTipoAndClaveIgnoreCaseAndActivoTrue(String tipo, String clave);
 }

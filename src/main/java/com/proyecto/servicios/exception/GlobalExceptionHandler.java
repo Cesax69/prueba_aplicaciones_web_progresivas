@@ -1,7 +1,6 @@
 package com.proyecto.servicios.exception;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
+import com.proyecto.servicios.model.GenericResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -12,113 +11,118 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(ClienteNoEncontradoException.class)
-    public ResponseEntity<ErrorResponse> handleClienteNoEncontrado(ClienteNoEncontradoException ex) {
+    public ResponseEntity<GenericResponse> handleClienteNoEncontrado(ClienteNoEncontradoException ex) {
         log.error("Cliente no encontrado", ex);
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(new ErrorResponse(ex.getStatusCode(), ex.getMessage(), LocalDateTime.now()));
+                .body(new GenericResponse(1, ex.getMessage()));
     }
 
     @ExceptionHandler(CurpDuplicadaException.class)
-    public ResponseEntity<ErrorResponse> handleCurpDuplicada(CurpDuplicadaException ex) {
+    public ResponseEntity<GenericResponse> handleCurpDuplicada(CurpDuplicadaException ex) {
         log.error("CURP duplicada", ex);
         return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(new ErrorResponse(ex.getStatusCode(), ex.getMessage(), LocalDateTime.now()));
+                .body(new GenericResponse(1, ex.getMessage()));
     }
 
     @ExceptionHandler(RfcDuplicadoException.class)
-    public ResponseEntity<ErrorResponse> handleRfcDuplicado(RfcDuplicadoException ex) {
+    public ResponseEntity<GenericResponse> handleRfcDuplicado(RfcDuplicadoException ex) {
         log.error("RFC duplicado", ex);
         return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(new ErrorResponse(ex.getStatusCode(), ex.getMessage(), LocalDateTime.now()));
+                .body(new GenericResponse(1, ex.getMessage()));
     }
 
     @ExceptionHandler(CorreoDuplicadoException.class)
-    public ResponseEntity<ErrorResponse> handleCorreoDuplicado(CorreoDuplicadoException ex) {
+    public ResponseEntity<GenericResponse> handleCorreoDuplicado(CorreoDuplicadoException ex) {
         log.error("Correo duplicado", ex);
         return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(new ErrorResponse(ex.getStatusCode(), ex.getMessage(), LocalDateTime.now()));
+                .body(new GenericResponse(1, ex.getMessage()));
     }
 
     @ExceptionHandler(ClienteYaRegistradoException.class)
-    public ResponseEntity<ErrorResponse> handleClienteYaRegistrado(ClienteYaRegistradoException ex) {
+    public ResponseEntity<GenericResponse> handleClienteYaRegistrado(ClienteYaRegistradoException ex) {
         log.error("Cliente ya registrado", ex);
         return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(new ErrorResponse(ex.getStatusCode(), ex.getMessage(), LocalDateTime.now()));
+                .body(new GenericResponse(1, ex.getMessage()));
     }
 
     @ExceptionHandler(CuentaNoEncontradaException.class)
-    public ResponseEntity<ErrorResponse> handleCuentaNoEncontrada(CuentaNoEncontradaException ex) {
+    public ResponseEntity<GenericResponse> handleCuentaNoEncontrada(CuentaNoEncontradaException ex) {
         log.error("Cuenta no encontrada", ex);
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(new ErrorResponse(ex.getStatusCode(), ex.getMessage(), LocalDateTime.now()));
+                .body(new GenericResponse(1, ex.getMessage()));
     }
 
     @ExceptionHandler(ValidacionException.class)
-    public ResponseEntity<ErrorResponse> handleValidacion(ValidacionException ex) {
+    public ResponseEntity<GenericResponse> handleValidacion(ValidacionException ex) {
         log.error("Error de validación", ex);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ErrorResponse(ex.getStatusCode(), ex.getMessage(), LocalDateTime.now()));
+                .body(new GenericResponse(1, ex.getMessage()));
     }
 
     @ExceptionHandler(ClienteException.class)
-    public ResponseEntity<ErrorResponse> handleClienteException(ClienteException ex) {
+    public ResponseEntity<GenericResponse> handleClienteException(ClienteException ex) {
         log.error("Error en módulo de clientes", ex);
         return ResponseEntity.status(ex.getStatusCode())
-                .body(new ErrorResponse(ex.getStatusCode(), ex.getMessage(), LocalDateTime.now()));
+                .body(new GenericResponse(1, ex.getMessage()));
     }
 
+    /**
+     * En caso de que alguna validacion no se cumpla para algun DTO se tira MethodArgumentNotValidException
+     * este metodo la cacha y regresa los mensajes de error para el cliente, con los message de cada campo.
+     */
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ErrorResponse> handleValidationErrors(MethodArgumentNotValidException ex) {
-        StringBuilder mensajeBuilder = new StringBuilder("Errores de validación: ");
-        ex.getBindingResult().getFieldErrors().forEach(error -> 
-            mensajeBuilder.append("[").append(error.getField()).append(": ").append(error.getDefaultMessage()).append("] ")
-        );
-        String mensajeFinal = mensajeBuilder.toString().trim();
-        log.error("Error de validación de campos: {}", mensajeFinal);
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ErrorResponse(400, mensajeFinal, LocalDateTime.now()));
+    public ResponseEntity<GenericResponse> dtoValidation(MethodArgumentNotValidException ex) {
+        GenericResponse genericResponse = new GenericResponse();
+        Map<String, String> listError = new HashMap<>();
+        for (FieldError fieldError : ex.getBindingResult().getFieldErrors()) {
+            listError.put(fieldError.getField(), fieldError.getDefaultMessage());
+        }
+        genericResponse.setCodigo(1);
+        genericResponse.setMensaje("Datos no validos" + listError);
+        log.error("Error de validación DTO: {}", genericResponse.getMensaje());
+        return new ResponseEntity<>(genericResponse, HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(jakarta.validation.ConstraintViolationException.class)
-    public ResponseEntity<ErrorResponse> handleConstraintViolation(jakarta.validation.ConstraintViolationException ex) {
-        StringBuilder mensajeBuilder = new StringBuilder("Errores de validación: ");
+    public ResponseEntity<GenericResponse> handleConstraintViolation(jakarta.validation.ConstraintViolationException ex) {
+        Map<String, String> listError = new HashMap<>();
         ex.getConstraintViolations().forEach(violation -> {
             String path = violation.getPropertyPath().toString();
             String campo = path.contains(".") ? path.substring(path.lastIndexOf('.') + 1) : path;
-            mensajeBuilder.append("[").append(campo).append(": ").append(violation.getMessage()).append("] ");
+            listError.put(campo, violation.getMessage());
         });
-        String mensajeFinal = mensajeBuilder.toString().trim();
-        log.error("Error de validación de parámetros: {}", mensajeFinal);
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ErrorResponse(400, mensajeFinal, LocalDateTime.now()));
+        GenericResponse response = new GenericResponse(1, "Datos no validos" + listError);
+        log.error("Error de validación de parámetros: {}", response.getMensaje());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
     @ExceptionHandler(MissingServletRequestParameterException.class)
-    public ResponseEntity<ErrorResponse> handleMissingParam(MissingServletRequestParameterException ex) {
+    public ResponseEntity<GenericResponse> handleMissingParam(MissingServletRequestParameterException ex) {
         String mensaje = "El parámetro '" + ex.getParameterName() + "' es requerido y no fue proporcionado.";
         log.error("Parámetro requerido faltante: {}", ex.getParameterName());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ErrorResponse(400, mensaje, LocalDateTime.now()));
+                .body(new GenericResponse(1, mensaje));
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
-    public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+    public ResponseEntity<GenericResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
         String tipoEsperado = ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "desconocido";
         String mensaje = "El parámetro '" + ex.getName() + "' tiene un formato inválido. Se esperaba un valor de tipo: " + tipoEsperado + ".";
         log.error("Error de tipo en parámetro: {}", ex.getName());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ErrorResponse(400, mensaje, LocalDateTime.now()));
+                .body(new GenericResponse(1, mensaje));
     }
 
     @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
-    public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(org.springframework.http.converter.HttpMessageNotReadableException ex) {
+    public ResponseEntity<GenericResponse> handleHttpMessageNotReadable(org.springframework.http.converter.HttpMessageNotReadableException ex) {
         log.error("Error de formato en JSON", ex);
 
         String mensajeEspecifico = "Error en el formato del JSON. Verifique que los tipos de datos sean correctos.";
@@ -145,21 +149,33 @@ public class GlobalExceptionHandler {
         }
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ErrorResponse(400, mensajeEspecifico, LocalDateTime.now()));
+                .body(new GenericResponse(1, mensajeEspecifico));
+    }
+
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<GenericResponse> handleDataIntegrity(org.springframework.dao.DataIntegrityViolationException ex) {
+        log.error("Violación de integridad de datos en BD", ex);
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new GenericResponse(1, "Conflicto de integridad: el registro ya existe o viola una restricción del sistema"));
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleGeneral(Exception ex) {
+    public ResponseEntity<GenericResponse> handleGeneral(Exception ex) {
         log.error("Error inesperado", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ErrorResponse(500, "Error interno del servidor", LocalDateTime.now()));
+                .body(new GenericResponse(2, "Ha ocurrido un error inesperado al procesar la información"));
     }
 
-    @Data
-    @AllArgsConstructor
-    public static class ErrorResponse {
-        private int status;
-        private String mensaje;
-        private LocalDateTime timestamp;
+    /**
+     * Clase auxiliar para compatibilidad con esquemas Swagger / OpenAPI
+     */
+    public static class ErrorResponse extends GenericResponse {
+        public ErrorResponse() {
+            super();
+        }
+
+        public ErrorResponse(int status, String mensaje) {
+            super(status, mensaje);
+        }
     }
 }
